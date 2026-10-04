@@ -3,7 +3,7 @@
 <p>peer to peer 节点组织方式<br />
 每个节点可以请求、提供、转发数据</p>
 
-<h2>Lesson 1 - Gnutella 找数据</h2>
+<h2>Gnutella 找数据</h2>
 
 <h3>1. Gnutella &amp;flooding&amp;TTL&amp;hop</h3>
 
@@ -26,7 +26,7 @@ child可以沿着parent向上routing</p>
 连接状态: 正在连接/关闭了, 超时计数器<br />
 协议状态: 数据发到百分之多少了, 缓冲区是否有消息等待发送</p>
 
-<h2>Lesson 2 - BitTorrent 拿数据</h2>
+<h2>BitTorrent 拿数据</h2>
 
 <h3>1. Peer-to-Peer file sharing&amp;BitTorrent&amp;shard</h3>
 
@@ -40,7 +40,7 @@ Better availability: Rarest-First 防止断电找不到数据</p>
 目的是提高rare shard availability,让shard distribution更均匀从而降低某个shard消失的风险<br />
 因为备份有传播效应,所以原来已经common的会更common所以要下载rare让所有的均衡</p>
 
-<h2>Lesson 3 - Chord</h2>
+<h2>Chord</h2>
 
 <p>Chord Ring 的ID space: $2^m$(并不一定1 ID to 1 Machine 可以没有对应的node)</p>
 
@@ -124,7 +124,7 @@ Node 5                     ← 最终住的机器
 
 <h2>Key-Value Store</h2>
 
-<h2>Lesson 4 - Bloom Filter</h2>
+<h2>Bloom Filter</h2>
 
 <p>hash collision: 数据可能存在但是是别人的<br />
 Bloom Filter: 用多个hash操作一个字符串,并相乘如果全为1则maybe present,如果为0就definitely not present,可能假阳性但是一定不会假阴性</p>
@@ -173,7 +173,7 @@ Original $\approx$ Leo-all，因为 $\frac{4n}{1024}=\frac{n}{256}$。</p>
 <strong>ANY：</strong> 遇到 <code>True</code> → stop<br />
 都支持 <strong>short-circuit</strong>；实际性能还取决于 <strong>memory access / separate filters</strong>。</p>
 
-<h2>Lesson 5 - Quorum Intersection</h2>
+<h2>Quorum Intersection</h2>
 
 <p><strong>Quorum</strong>：完成一次操作所要求参与的一组节点，核心是保证不同操作的节点集合存在 <strong>intersection</strong>。</p>
 
@@ -226,7 +226,7 @@ $$
 $$<br />
 <strong>两两相交不能保证所有集合存在共同节点。</strong></p>
 
-<h2>Lesson 6 - Cassandra</h2>
+<h2>Cassandra</h2>
 
 <p>核心思想：<strong>顺序写，不原地修改磁盘，之后统一 Compaction。</strong><br />
 $$
@@ -295,7 +295,7 @@ $$<br />
 Delete → Tombstone → Compaction
 </code></pre>
 
-<h2>Lesson 7 - Lamport Clock</h2>
+<h2>Lamport Clock</h2>
 
 <p><img src="/images/p2p/lamport-clock.png" alt="Screenshot 2026-10-04 at 15.28.29" style="zoom:30%;" /></p>
 

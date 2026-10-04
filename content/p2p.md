@@ -5,7 +5,7 @@
 peer to peer 节点组织方式
 每个节点可以请求、提供、转发数据
 
-#### Lesson 1 - Gnutella 找数据
+#### Gnutella 找数据
 
 ##### 1. Gnutella &flooding&TTL&hop
 
@@ -30,7 +30,7 @@ ID信息: IP Address/port
 
 
 
-#### Lesson 2 - BitTorrent 拿数据
+#### BitTorrent 拿数据
 
 ##### 1. Peer-to-Peer file sharing&BitTorrent&shard
 
@@ -46,7 +46,7 @@ Better availability: Rarest-First 防止断电找不到数据
 
 
 
-#### Lesson 3 - Chord
+#### Chord
 
 Chord Ring 的ID space: $2^m$(并不一定1 ID to 1 Machine 可以没有对应的node)
 
@@ -135,7 +135,7 @@ Hash 决定的是key在什么位置而不是key的value不要搞混,hash是吧�
 
 #### Key-Value Store
 
-#### Lesson 4 - Bloom Filter
+#### Bloom Filter
 
 hash collision: 数据可能存在但是是别人的
 Bloom Filter: 用多个hash操作一个字符串,并相乘如果全为1则maybe present,如果为0就definitely not present,可能假阳性但是一定不会假阴性
@@ -180,7 +180,7 @@ Original $\approx$ Leo-all，因为 $\frac{4n}{1024}=\frac{n}{256}$。
 
 
 
-#### Lesson 5 - Quorum Intersection
+#### Quorum Intersection
 
 **Quorum**：完成一次操作所要求参与的一组节点，核心是保证不同操作的节点集合存在 **intersection**。
 
@@ -237,7 +237,7 @@ $$
 
 
 
-#### Lesson 6 - Cassandra
+#### Cassandra
 
 核心思想：**顺序写，不原地修改磁盘，之后统一 Compaction。**
 $$
@@ -311,7 +311,7 @@ Delete → Tombstone → Compaction
 
 
 
-#### Lesson 7 - Lamport Clock
+#### Lamport Clock
 
 <img src="/images/p2p/lamport-clock.png" alt="Screenshot 2026-10-04 at 15.28.29" style="zoom:30%;" />
 
