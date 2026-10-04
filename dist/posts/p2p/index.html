@@ -1,0 +1,467 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="个人主页、项目与学习笔记"><title>P2P 与分布式系统学习笔记 · Nathen</title><link rel="stylesheet" href="/style.css?v=portrait-3"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231769aa'/%3E%3Cpath d='M9 8h14v16H9zM12 13h8M12 17h8' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"></head><body><div class="shell"><header class="header"><a class="name" href="/">Nathen</a><nav class="nav" aria-label="主导航"><a href="/">首页</a><a href="/blogs/" aria-current="page">博客</a><a href="/projects/">项目</a></nav></header><main id="main-content"><a class="back" href="/blogs/#systems">返回博客</a><p class="eyebrow">分布式系统 · CS425</p><h1>P2P 与分布式系统学习笔记</h1><p class="lead">2026 年 10 月 4 日 · 课程笔记</p><article class="panel prose course-note"><h3>p2p</h3>
+
+<p>peer to peer 节点组织方式<br />
+每个节点可以请求、提供、转发数据</p>
+
+<h2>Lesson 1 - Gnutella 找数据</h2>
+
+<h3>1. Gnutella &amp;flooding&amp;TTL&amp;hop</h3>
+
+<p>不知道就问peer,peer不知道就问peer的peer,如果每个patent都有两个child,这是一个二叉树<br />
+一个一个领居接着问是泛洪<br />
+TTL = time to live 如果system有环就会无限泛洪,所以需要引入hop限制步数<br />
+hop 可以理解为一步<br />
+Gnutella 本质是个图论问题</p>
+
+<h3>2. 数据结构</h3>
+
+<p>完全二叉树$ N=2^m-1 $ N为节点数, $m-1$ 为层数量 $[0:m-1]$<br />
+$TTL\ge \max_v distance(s,v)$ $  TTL_{\min} = \max_{u,v} distance(u,v)  $<br />
+distributed system trade-off:更多的连接=更短的routing path,更多 connection state<br />
+child可以沿着parent向上routing</p>
+
+<h3>3. 假设 $A \longleftrightarrow B$ 建立connection什么是connection state</h3>
+
+<p>ID信息: IP Address/port<br />
+连接状态: 正在连接/关闭了, 超时计数器<br />
+协议状态: 数据发到百分之多少了, 缓冲区是否有消息等待发送</p>
+
+<h2>Lesson 2 - BitTorrent 拿数据</h2>
+
+<h3>1. Peer-to-Peer file sharing&amp;BitTorrent&amp;shard</h3>
+
+<p>Parallelism: 不单个服务器作为瓶颈,每个peer都承担download和upload的任务<br />
+Load distributionFile切成shard本使得文件分散,进行并行传播和并行下载,利用别的节点的空闲带宽,是一种多对多,one download one upload in swarm,分散上传压力<br />
+Better availability: Rarest-First 防止断电找不到数据</p>
+
+<h3>2. Rarest-First下载 VS Most- common- first下载</h3>
+
+<p>优先下载在系统里副本最少的shard,因为如果出现意外下线,有可能永远拿不到完整的文件<br />
+目的是提高rare shard availability,让shard distribution更均匀从而降低某个shard消失的风险<br />
+因为备份有传播效应,所以原来已经common的会更common所以要下载rare让所有的均衡</p>
+
+<h2>Lesson 3 - Chord</h2>
+
+<p>Chord Ring 的ID space: $2^m$(并不一定1 ID to 1 Machine 可以没有对应的node)</p>
+
+<h3>1. successor 与  consistent hashing ring 与Finger Table</h3>
+
+<p>本质上是一种映射,当要找的node找不到时,就像指针一样,顺时针找下一个node, 最基本是一种$O(N)$的链表,然后引出Finger Table<br />
+Finger Table: 从认识的 Node 里面，找一个最接近目标、但还没有超过目标的 Node，然后跳过去。$start_i=(n+2^{i-1})\bmod 2^m$<br />
+$finger[i]=successor(start_i)$<br />
+时间$O(\log N)$ 按照$2^0,\ 2^1,\ 2^2,\ 2^3,\ldots$建立finger table, 所以每次跳跃每次缩小一半的距离</p>
+
+<p><img src="/images/p2p/chord-ring.png" alt="Distributed caching strategies &amp; sharding techniques for high performance" style="zoom:50%;" /></p>
+
+<pre><code>step1
+                    0  ← Node 0
+                 ↗         ↘
+              7               1
+            ↗                   ↘
+           6                     2  ← Node 2
+            ↑                   ↓
+              5               3
+              ↑               ↓
+            Node 5      ←     4
+
+step2
+0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 0 → ...
+↑       ↑           ↑
+Node    Node        Node
+0       2           5
+
+step3
+key = "cat.jpg"
+hash("cat.jpg") = 4
+
+step4
+0 → 1 → 2 → 3 → [4] → 5 → 6 → 7 → 0
+        ↑              ↑
+      Node 2          Node 5
+
+step5
+位置 4 → 没有 Node！→ key 4 → Node 5
+successor(4) = 5
+</code></pre>
+
+<h3>2. Chord Routing 的原则与跳法</h3>
+
+<p>closest preceding finger: 从 finger table 里选择一个最接近 key、但还没有超过 key 的 node。<br />
+算法: 在 Node \(n\)，如果：$ k\in(n, successor(n)] $<br />
+    那么 $successor(k)=successor(n) $直接结束。<br />
+    否则：$\text{forward to closest preceding finger}$<br />
+Node Failure : 凡是 finger table 中指向 failed node 的节点，都需要更新</p>
+
+<pre><code>我要找 key k
+
+        ↓
+
+k 是否在 (current, successor]？
+
+     /             \
+   YES              NO
+    |                |
+    ↓                ↓
+successor就是答案    finger table里
+                     找最接近k但
+                     没超过k的node
+                          |
+                          ↓
+                       跳过去
+                          |
+                          ↺
+</code></pre>
+
+<h3>3. Key hash</h3>
+
+<pre><code>key       = "cat.jpg"     ← 我是谁
+value     = 猫图片         ← 我的东西
+hash(key) = 4             ← 我的地址编号
+Node 5                     ← 最终住的机器
+</code></pre>
+
+<p>Hash 决定的是key在什么位置而不是key的value不要搞混,hash是吧图片变成数字,再用数字去决定放在哪个机器</p>
+
+<h2>Key-Value Store</h2>
+
+<h2>Lesson 4 - Bloom Filter</h2>
+
+<p>hash collision: 数据可能存在但是是别人的<br />
+Bloom Filter: 用多个hash操作一个字符串,并相乘如果全为1则maybe present,如果为0就definitely not present,可能假阳性但是一定不会假阴性</p>
+
+<h3>Bloom Filter — FPR</h3>
+
+<p>设：$m=\text{bits},\ k=\text{hash 数},\ n=\text{插入元素数}$  </p>
+
+<h3>1. 核心公式</h3>
+
+<p>一个 bit 为 1 的概率：<br />
+$$
+p=1-\left(1-\frac{1}{m}\right)^{kn}\approx1-e^{-kn/m}
+$$<br />
+False Positive Rate：<br />
+$$
+FPR=p^k
+$$<br />
+直觉：$n\uparrow \Rightarrow \text{bit 更满} \Rightarrow FPR\uparrow$</p>
+
+<h3>2. 多个独立 Filter</h3>
+
+<p>若单个 filter 的 False Positive 概率为 $p$：<br />
+<strong>ALL：</strong> $P(FP)=p^k$<br />
+<strong>ANY：</strong> $P(FP)=1-(1-p)^k$<br />
+记忆：<strong>ALL = 全部发生；ANY = 1 - 全部不发生</strong></p>
+
+<h3>3. Q4</h3>
+
+<p><strong>Original Bloom：</strong> $m=1024,\ k=4$<br />
+$$
+FPR=\left[1-\left(1-\frac{1}{1024}\right)^{4n}\right]^4
+$$<br />
+<strong>Leo：</strong> 4 个独立 filter，每个 $m=256,\ k=1$<br />
+单个 filter：<br />
+$$
+p=1-\left(1-\frac{1}{256}\right)^n
+$$<br />
+Leo-all：$FPR=p^4$<br />
+Leo-any：$FPR=1-(1-p)^4$<br />
+Original $\approx$ Leo-all，因为 $\frac{4n}{1024}=\frac{n}{256}$。</p>
+
+<h3>4. Performance</h3>
+
+<p><strong>ALL：</strong> 遇到 <code>False</code> → stop<br />
+<strong>ANY：</strong> 遇到 <code>True</code> → stop<br />
+都支持 <strong>short-circuit</strong>；实际性能还取决于 <strong>memory access / separate filters</strong>。</p>
+
+<h2>Lesson 5 - Quorum Intersection</h2>
+
+<p><strong>Quorum</strong>：完成一次操作所要求参与的一组节点，核心是保证不同操作的节点集合存在 <strong>intersection</strong>。</p>
+
+<h3>1. 两个 Quorum</h3>
+
+<p>对于 $N$ 个节点，每个 quorum 大小为 $M$：<br />
+$$
+|Q_1\cap Q_2|\ge 2M-N
+$$<br />
+若要求至少 $r$ 个共同节点：<br />
+$$
+2M-N\ge r
+$$<br />
+所以：<br />
+$$
+M_{\min}=\left\lceil\frac{N+r}{2}\right\rceil
+$$<br />
+当 $r=1$ 时：<br />
+$$
+M_{\min}=\lfloor N/2\rfloor+1
+$$<br />
+即 <strong>Majority Quorum（超过一半）</strong>。</p>
+
+<h3>2. k 个 Quorum</h3>
+
+<p>每个 quorum 排除 $N-M$ 个节点，$k$ 个 quorum 最坏排除：<br />
+$$
+k(N-M)
+$$<br />
+因此共同交集至少为：<br />
+$$
+|Q_1\cap\cdots\cap Q_k|\ge N-k(N-M)=kM-(k-1)N
+$$<br />
+若要求至少 $r$ 个共同节点：<br />
+$$
+kM-(k-1)N\ge r
+$$<br />
+所以：<br />
+$$
+M_{\min}=\left\lceil\frac{(k-1)N+r}{k}\right\rceil
+$$<br />
+三个 quorum 是特例：<br />
+$$
+M_{\min}=\left\lceil\frac{2N+r}{3}\right\rceil
+$$<br />
+核心思想:每个 quorum 能排除 $N-M$ 个节点；$k$ 个 quorum 最坏排除 $k(N-M)$ 个不同节点；<strong>剩下没被任何 quorum 排除的节点，就是共同 intersection。</strong><br />
+注意：<br />
+$$
+\text{Pairwise Intersection}\neq\text{Common Intersection}
+$$<br />
+<strong>两两相交不能保证所有集合存在共同节点。</strong></p>
+
+<h2>Lesson 6 - Cassandra</h2>
+
+<p>核心思想：<strong>顺序写，不原地修改磁盘，之后统一 Compaction。</strong><br />
+$$
+\text{Write Fast Now, Compact Later}
+$$</p>
+
+<h3>1. Write Path</h3>
+
+<p>$$
+\text{Write}\rightarrow\text{Commit Log}+\text{Memtable}\rightarrow\text{Flush}\rightarrow\text{SSTable}
+$$</p>
+
+<ul>
+<li><strong>Commit Log (Disk)</strong>：顺序追加，保证 durability。</li>
+<li><strong>Memtable (RAM)</strong>：快速写入，满后 flush。</li>
+<li><strong>SSTable (Disk)</strong>：immutable，不原地修改。<br />
+Update 直接写新版本，通过 timestamp/version 选择最新值：</li>
+</ul>
+
+<pre><code>Old: B → 20
+New: B → 99
+</code></pre>
+
+<h3>2. Compaction</h3>
+
+<p>合并多个 SSTable，删除过期版本：</p>
+
+<pre><code>B→20, B→30, B→50  →  B→50
+</code></pre>
+
+<h3>3. Tombstone</h3>
+
+<p>DELETE 不物理删除，而是写：</p>
+
+<pre><code>B → TOMBSTONE
+</code></pre>
+
+<p>原因：<strong>SSTable immutable + 防止旧 replica 让删除数据复活</strong>。Tombstone 是带 timestamp 的 delete update，最终由 Compaction 清理。</p>
+
+<h3>4. Bloom Filter</h3>
+
+<pre><code>definitely not present → 不读 SSTable
+maybe present → 读 SSTable
+</code></pre>
+
+<p>作用：<strong>减少无效 SSTable disk I/O，提高 read performance。</strong></p>
+
+<h3>4. Full Membership vs Finger Table</h3>
+
+<p>Chord finger table 需要：<br />
+$$
+O(\log N)\text{ routing hops}
+$$<br />
+Cassandra 保存 full membership，可以更直接找到目标 replica：<br />
+$$
+\text{More Metadata}\Longleftrightarrow\text{Fewer Routing Hops}
+$$<br />
+即：<strong>用更多 membership metadata 换更低 routing latency。</strong></p>
+
+<h3>5. 一条线记住</h3>
+
+<pre><code>Write → Commit Log + Memtable → Flush → SSTable
+                                  ↓
+                     Bloom Filter / Compaction
+
+Delete → Tombstone → Compaction
+</code></pre>
+
+<h2>Lesson 7 - Lamport Clock</h2>
+
+<p><img src="/images/p2p/lamport-clock.png" alt="Screenshot 2026-10-04 at 15.28.29" style="zoom:30%;" /></p>
+
+<h3>1. Happened-Before</h3>
+
+<p>$A\rightarrow B$：A 在因果关系上发生于 B 之前。</p>
+
+<h4>三种情况</h4>
+
+<ul>
+<li>同一 Process：前面的事件 $\rightarrow$ 后面的事件</li>
+<li>Message：$send\rightarrow receive$</li>
+<li>传递性：$A\rightarrow B,\ B\rightarrow C\Rightarrow A\rightarrow C$</li>
+</ul>
+
+<h4>Concurrent</h4>
+
+<p>如果：<br />
+$$
+A\nrightarrow B,\quad B\nrightarrow A
+$$<br />
+则 A、B concurrent（没有可证明的因果关系）。</p>
+
+<h3>2. Lamport Clock 规则</h3>
+
+<h4>Local / Send</h4>
+
+<p>$$
+L=L+1
+$$<br />
+Send 时把当前 $L$ 放进 message。</p>
+
+<h4>Receive</h4>
+
+<p>收到 message timestamp $T_m$：<br />
+$$
+L=\max(L,T_m)+1
+$$</p>
+
+<h3>3. 核心性质</h3>
+
+<p>$$
+A\rightarrow B\Rightarrow L(A)&lt;L(B)
+$$<br />
+但反过来不成立：<br />
+$$
+L(A)&lt;L(B)\not\Rightarrow A\rightarrow B
+$$<br />
+<strong>所以 Lamport Clock 不能判断两个事件是否 concurrent。</strong></p>
+
+<h3>4. 初始值</h3>
+
+<p>各 Process 可以从不同值开始，只要仍遵守：<br />
+$$
+Local/Send:+1
+$$<br />
+$$
+Receive:\max(L,T_m)+1
+$$<br />
+就仍保证：<br />
+$$
+A\rightarrow B\Rightarrow L(A)&lt;L(B)
+$$</p>
+
+<p><img src="/images/p2p/vector-clock.png" alt="Screenshot 2026-10-04 at 15.27.04" style="zoom:40%;" /></p>
+
+<h2>Vector Clock</h2>
+
+<h3>1. 核心</h3>
+
+<p>Lamport Clock：<br />
+$$
+A\rightarrow B \Rightarrow L(A)&lt;L(B)
+$$<br />
+但不能反推，所以无法判断 concurrency。Vector Clock 用一个向量记录各 process 的 causal history：<br />
+$$
+V=[v_1,v_2,\dots,v_N]
+$$</p>
+
+<h3>2.更新规则</h3>
+
+<p>初始：<br />
+$$
+[0,0,\dots,0]
+$$<br />
+Local / Send：只增加自己的维度：<br />
+$$
+V_i[i]++
+$$<br />
+Send 时携带整个 vector。</p>
+
+<p>Receive：先逐元素取 max：<br />
+$$
+V_i[j]=\max(V_i[j],V_m[j])
+$$<br />
+再增加自己的维度：<br />
+$$
+V_i[i]++
+$$<br />
+即：<strong>merge knowledge → 记录 receive event</strong>。</p>
+
+<h3>3.判断 Causality</h3>
+
+<p>若：<br />
+$$
+V(A)[i]\le V(B)[i],\quad \forall i
+$$<br />
+且至少一维严格小于，则：<br />
+$$
+A\rightarrow B
+$$<br />
+例如：<br />
+$$
+[1,2,3]&lt;[2,2,5]
+$$<br />
+如果两个 vector 互有大小：<br />
+$$
+A\nless B,\quad B\nless A
+$$<br />
+则：<br />
+$$
+A\parallel B
+$$<br />
+表示 concurrent。例如：<br />
+$$
+[3,1,0]\parallel[2,4,0]
+$$</p>
+
+<h3>4. Lamport vs Vector</h3>
+
+<table>
+<thead>
+<tr>
+  <th></th>
+  <th>Lamport</th>
+  <th>Vector</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>Timestamp</td>
+  <td>Integer</td>
+  <td>Vector</td>
+</tr>
+<tr>
+  <td>Receive</td>
+  <td>$\max+1$</td>
+  <td>element-wise max，再自己 +1</td>
+</tr>
+<tr>
+  <td>判断 causality</td>
+  <td>不能反推</td>
+  <td>可以</td>
+</tr>
+<tr>
+  <td>判断 concurrent</td>
+  <td>不可以</td>
+  <td>可以</td>
+</tr>
+<tr>
+  <td>Space</td>
+  <td>$O(1)$</td>
+  <td>$O(N)$</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Lamport 只能给顺序；Vector 能判断因果和并发。</strong></p>
+</article><script>window.MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js"></script></main><footer class="footer"><span>© 2026 Nathen</span><span>学习、构建与记录。</span></footer></div></body></html>
