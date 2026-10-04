@@ -1,0 +1,25 @@
+<p><strong>理论</strong>: <a href="https://leetcode.cn/problems/maximum-number-of-vowels-in-a-substring-of-given-length/solutions/2809359/tao-lu-jiao-ni-jie-jue-ding-chang-hua-ch-fzfo/">定长滑窗套路</a><br />
+<strong>定长滑窗套路</strong><br />
+窗口右端点在$ i $时，由于窗口长度为 $k$，所以窗口左端点为$ i−k+1$<br />
+总结成三步：<strong>入-更新答案-出</strong><br />
+<strong>1.入</strong>：下标为 $i $的元素进入窗口，更新相关统计量。如果窗口左端点$ i−k+1&lt;0$，说明尚未形成第一个窗口，重复第一步。<br />
+<strong>2.更新答案</strong>：此时窗口长度为 $k$，符合题目要求，用相关统计量更新答案。<br />
+<strong>3.出</strong>：下标为 $i−k+1 $的元素离开窗口，更新相关统计量，为下一个循环做准备。注：元素离开窗口后，窗口长度为 k−1。下一轮循环元素进入窗口后，窗口长度为 k。</p>
+
+<pre><code>class Solution(object):
+    def maxVowels(self, s, k):
+        ans = vowel = 0
+        #i是索引c是内容
+        for i,c in enumerate(s):
+            if c in "aeiou":
+                vowel += 1
+            left = i-k+1#根据索引写出left坐标,因为k是固定的,所以知道right就知道left
+            if left&lt;0 :#如果不满足就重复第一步说明尚未形成第一个窗口
+                continue
+            ans = max(ans,vowel)#此时窗口长度为k符合题目要求统计相关量
+            if s[left] in "aeiou":
+                vowel-=1
+        return ans
+</code></pre>
+
+<p><strong>例题</strong>: <a href="https://leetcode.cn/problems/number-of-sub-arrays-of-size-k-and-average-greater-than-or-equal-to-threshold/">固定长度的滑动窗口</a></p>

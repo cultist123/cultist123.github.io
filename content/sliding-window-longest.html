@@ -1,0 +1,38 @@
+<p>不定长滑动窗口主要分为三类：求最长子数组，求最短子数组，求子数组个数。</p>
+
+<h3>不定长滑窗套路</h3>
+
+<p>滑动窗口相当于在维护一个队列。右指针的移动可以视作入队，左指针的移动可以视作出队。</p>
+
+<p>窗口大小随条件动态伸缩：</p>
+
+<ol>
+<li><strong>扩展右界（<code>right</code> 进窗口）</strong>：逐个将字符加入 <code>count</code> 计数器中。</li>
+<li><strong>校验并收缩（<code>while</code> 条件不满足）</strong>：如果新加入的字符导致 <code>count[ch] &gt; 2</code>，说明当前窗口合法性破坏。通过 <code>while</code> 循环将 <code>s[left]</code> 弹出窗口，并递增 <code>left</code>，直至窗口恢复合法状态。   </li>
+<li><strong>计算与更新（全局最大值）</strong>：进入第 3 步时窗口必然合法，当前合法窗口长度为 <code>right - left + 1</code>，用 <code>max</code> 维护全局最大值。</li>
+<li><strong>返回值</strong>：遍历结束后，<code>ans</code> 即为答案。   </li>
+</ol>
+
+<pre><code>class Solution:
+    def maxWindowTemplate(self, nums: List[int]) -&gt; int:
+        left = 0
+        ans = 0  # 1. 初始值设为 0（或 -1 / float('-inf')，取决于具体逻辑）
+        cur_state = 0  # 窗口状态（如字符频次表、滑动和等）
+        for right, val in enumerate(nums):
+            # 1. 进窗口：扩展右边界并更新状态
+            # 例如：freq[val] = freq.get(val, 0) + 1 或 cur_sum += val
+            # 2. 校验与收缩：当窗口处于非法状态时，强制收缩左边界，直到重新合法
+            while is_invalid(cur_state):  # 检查窗口是否违规（如 freq[val] &gt; k 或 cur_sum &gt; target）
+                # 出窗口：扣除 left 指针对应的状态
+                # 例如：freq[nums[left]] -= 1 或 cur_sum -= nums[left]
+                left += 1  # 左指针右移
+            # 3. 结果维护：此时 while 循环结束，窗口必然合法！
+            # 用当前合法的实时长度 (right - left + 1) 去刷新全局最大值
+            ans = max(ans, right - left + 1)
+        # 4. 返回最大长度
+        return ans
+</code></pre>
+
+<p><strong>例题</strong>:<a href="https://leetcode.cn/problems/maximum-length-substring-with-two-occurrences/">每个字符最多出现两次的最长子字符串</a></p>
+
+<p><a href="https://leetcode.cn/problems/longest-substring-without-repeating-characters/">无重复最长子串</a></p>

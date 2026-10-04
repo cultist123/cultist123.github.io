@@ -10,11 +10,13 @@ def page(title,active,body,path):
     target=root/path;target.parent.mkdir(parents=True,exist_ok=True);target.write_text(text)
 posts=[('systems','分布式系统','membership','成员管理与故障检测','从心跳到 Gossip，理解分布式系统如何判断节点是否存活。',[('为什么需要成员管理','一个节点需要知道哪些同伴可以通信。成员管理维护这一视图，并处理节点加入、离开与故障。'),('故障检测的取舍','超时并不能证明节点已经故障。网络延迟和丢包也会造成误判。调整检测周期、超时与确认方式，需要平衡检测速度和误报率。'),('实验记录','记录实验环境、节点数量、注入的故障以及测量方式，才能比较不同配置的表现。')]),('systems','分布式系统','consistency','一致性与可用性的取舍','整理副本、一致性与网络分区之间的关系。',[('副本与读写','副本提高容错能力，也让不同节点可能在同一时刻看到不同数据。讨论一致性之前，需要明确读写如何传播。'),('网络分区','通信中断时，系统无法同时保证每个请求都成功响应和所有读写都符合线性一致性。设计需要针对具体业务选择行为。')]),('java','Java','threads','Java 并发学习笔记','理解线程、共享状态和同步机制。',[('共享状态','多个线程访问同一份可变数据时，需要关注可见性与原子性。一个简单的递增操作也可能包含多个步骤。'),('同步机制','synchronized 和锁可以保护临界区。缩小共享状态和临界区范围，通常比增加复杂同步逻辑更容易维护。')]),('notes','随笔','first-post','开始记录，慢慢积累','给这个个人空间的第一篇笔记。',[('为什么写下来','把一个问题写清楚，常常意味着重新梳理自己的理解。这里会保留学习过程中的问题、尝试和收获。'),('接下来','可以从一个技术问题、一个小项目或一次实验开始。每篇文章只需要讲清楚一个具体问题。')])]
 groups='';cats=''
-for cat,label in [('systems','分布式系统'),('java','Java'),('notes','随笔')]:
+for cat,label in [('systems','分布式系统'),('algorithms','算法'),('java','Java'),('notes','随笔')]:
     cats+=f'<a href="#{cat}">{label}</a>'
     rows=''.join(f'<article class="row"><time datetime="2026-10-03">2026 年 10 月 3 日</time><h3><a href="/posts/{slug}/">{title}</a></h3></article>' for c,l,slug,title,desc,sections in posts if c==cat)
     if cat=='systems':
         rows='<article class="row"><time datetime="2026-10-04">2026 年 10 月 4 日</time><h3><a href="/posts/p2p/">分布式系统 · 文章索引</a></h3></article>'+rows
+    if cat=='algorithms':
+        rows='<article class="row"><time datetime="2026-10-04">2026 年 10 月 4 日</time><h3><a href="/posts/sliding-window/?v=sliding-20261004-1">滑动窗口 · 文章索引</a></h3></article>'+rows
     groups+=f'<section class="group" id="{cat}"><h2>{label}</h2><div class="list">{rows}</div></section>'
 page('博客','blogs',f'<p class="eyebrow">Writing & notes</p><h1>博客</h1><p class="lead">记录学习、项目与思考。</p><div class="directory"><nav class="categories" aria-label="文章分类"><span>文章分类</span>{cats}</nav><div>{groups}</div></div>','blogs/index.html')
 page('首页','home','''<section class="intro"><div class="intro-copy"><p class="eyebrow">Backend · Distributed systems · Robotics</p><h1>你好，我是 Nathen。</h1><p class="lead">我是 Zewen Shen，目前在伊利诺伊大学厄巴纳-香槟分校（UIUC）攻读计算机工程硕士，方向为自主系统与机器人。我关注后端工程、分布式系统、AI 基础设施与实时感知。</p><div class="contact-links"><a class="pill" href="/blogs/">阅读博客</a><a class="pill" href="https://github.com/cultist123">GitHub</a><a class="pill" href="https://www.linkedin.com/in/zewen-shen-471490349/">LinkedIn</a></div></div><div class="portrait-frame"><img class="portrait" src="/images/nathen.jpg" alt="Nathen 的个人照片" width="168" height="168"></div></section><section class="prose"><h2>关于我</h2><p>我的工作横跨软件系统与物理世界：从 IoT 数据采集和设备控制，到实时视觉定位，再到基于 Raft 的分布式存储和 AI Agent 工作流。我喜欢把系统实现、实验过程与学习心得记录下来。</p><h2>博客</h2><p>记录工程实践与系统设计中的思考。</p><p><a href="/blogs/">查看学习笔记</a></p><h2>项目</h2><p>正在这个空间整理分布式键值存储、实时 IoT 监控平台和 AI 基础设施 Copilot 的实现。</p><p><a href="/projects/">查看项目详情</a></p></section><section><h2>教育经历</h2><article class="panel"><h3>University of Illinois Urbana-Champaign</h3><p>计算机工程硕士 · Autonomy & Robotics</p></article><article class="panel"><h3>Nanjing Normal University · 南京师范大学</h3><p>Electrical and Computer Engineering 理学学士</p><p class="note">2022.08 – 2026.05</p><p>Dean’s Award、2026 届优秀毕业生。</p></article></section><section><h2>实习经历</h2><article class="panel"><h3>GoodWe · 固德威</h3><p>软件工程实习生 · 后端与 IoT 平台</p><p class="note">2026.05 – 2026.08 · 苏州</p><p>参与设备协议评估与接入，基于 MQTT、Apache Flink 和 Kafka 扩展遥测数据解析与标准化；使用 Kafka、MQTT 和 Redis 实现设备控制的确认、幂等、超时与重试，并完成端到端测试。</p></article></section><section class="prose"><h2>技术工具</h2><p><strong>语言：</strong>Java、Python、C/C++、JavaScript、SQL。</p><p><strong>后端与数据：</strong>Spring Boot、Node.js、Express、gRPC、WebSocket、PostgreSQL、MySQL、Redis、MongoDB、Kafka。</p><p><strong>系统与 AI：</strong>Docker、Kubernetes、AWS、Linux、PyTorch、LangGraph、RAG、OpenCV。</p></section>''','index.html')
@@ -25,3 +27,6 @@ for cat,label,slug,title,desc,sections in posts:
 
 from course_notes import build
 build(page)
+
+from sliding_window import build as build_sliding_window
+build_sliding_window(page)

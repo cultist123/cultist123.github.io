@@ -1,0 +1,70 @@
+<p><strong>1.进窗口</strong>（扩展 <code>right</code>）</p>
+
+<p>将当前右指针元素 <code>nums[right]</code> 加入窗口统计数据中（如求和 <code>cur_sum += nums[right]</code> 或维护频次表）。</p>
+
+<p><strong>2.校验、记录并收缩</strong>（<code>while</code> 窗口合法）</p>
+
+<p><strong>触发条件</strong>：<code>while</code> 检查窗口<strong>是否已经满足条件</strong>（例如 <code>cur_sum &gt;= target</code>）。</p>
+
+<p><strong>动作 1（记录答案）</strong>：因为当前窗口已经合法，<strong>立刻用 <code>min</code> 记录/更新最小值</strong> <code>ans = min(ans, right - left + 1)</code>。</p>
+
+<p><strong>动作 2（出窗口试探）</strong>：将左指针元素 <code>nums[left]</code> 移出窗口，并让 <code>left += 1</code>，试图“挤掉”左边的元素，探查在保持合法的前提下窗口能否更短。</p>
+
+<p><strong>3.兜底与返回</strong>（边缘处理）</p>
+
+<p>遍历结束后，检查 <code>ans</code> 是否仍为初始设定的极大值 <code>float('inf')</code>。如果是，说明全程没有满足条件的子数组，按题意返回 <code>0</code>；否则返回 <code>ans</code>。</p>
+
+<pre><code>class Solution:
+    def minWindowTemplate(self, nums: List[int], target: int) -&gt; int:
+        left = 0
+        ans = float("inf")  # 1. 初始值设为正无穷
+        cur_state = 0  # 窗口状态（如区间和、字符频次等）
+        for right, val in enumerate(nums):
+            # 1. 进窗口：扩展右边界
+            cur_state += val
+            # 2. 只要满足条件，就不断尝试“收缩”以寻找更短的合法窗口
+            while is_valid(cur_state):  # 判断条件（如 cur_state &gt;= target）
+                ans = min(ans, right - left + 1)  # 2a. 先记录当前最小值
+                cur_state -= nums[left]  # 2b. 出窗口
+                left += 1  # 2c. 左指针右移
+        # 3. 兜底返回
+        return ans if ans != float("inf") else 0
+</code></pre>
+
+<p><strong>例题：</strong><a href="https://leetcode.cn/problems/minimum-size-subarray-sum/">长度最小的子数组</a></p>
+
+<p><a href="https://leetcode.cn/problems/minimum-subarray-length-with-distinct-sum-at-least-k/"> 不同元素和至少为 K 的最短子数组长度</a> </p>
+
+<h3>求最长与求最短的区别</h3>
+
+<table>
+<thead>
+<tr>
+  <th><strong>维度 / 差异</strong></th>
+  <th><strong>求最长 / 最大（如 LeetCode 3, 3090）</strong></th>
+  <th><strong>求最短 / 最小（如 LeetCode 209, 76）</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><strong><code>while</code> 触发条件</strong></td>
+  <td><code>while (窗口不合法)</code></td>
+  <td><code>while (窗口合法)</code></td>
+</tr>
+<tr>
+  <td><strong><code>while</code> 内部动作</strong></td>
+  <td>强行踢出 <code>left</code>，直到窗口<strong>重新合法</strong></td>
+  <td><strong>先更新 <code>min</code></strong>，然后踢出 <code>left</code> 试探更短可能</td>
+</tr>
+<tr>
+  <td><strong>答案更新位置</strong></td>
+  <td><strong><code>while</code> 循环外部</strong>（此时刚恢复合法）</td>
+  <td><strong><code>while</code> 循环内部</strong>（每次合法时立刻更新）</td>
+</tr>
+<tr>
+  <td><strong>答案初始值</strong></td>
+  <td><code>ans = 0</code></td>
+  <td><code>ans = float('inf')</code></td>
+</tr>
+</tbody>
+</table>
