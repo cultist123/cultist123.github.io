@@ -11,3 +11,11 @@
 @media(min-width:761px) and (max-width:1099px){.course-layout{grid-template-columns:250px minmax(0,1fr);gap:28px}}
 
 .course-sidebar{line-height:1.3}.course-sidebar nav{gap:2px}.course-sidebar a{padding:5px 10px}.sidebar-heading{padding-bottom:10px}.local-toc{margin-top:12px;padding-top:12px}.local-toc strong{padding-bottom:5px}
+
+/* Shared directory sizing and spacing for indexes and article contents. */
+:root{--directory-width:280px;--directory-line-height:1.3;--directory-gap:2px;--directory-padding:5px 10px}
+.course-sidebar,.categories{font-size:13px;line-height:var(--directory-line-height)}
+.course-sidebar nav,.categories{gap:var(--directory-gap)}
+.course-sidebar a,.categories a{padding:var(--directory-padding);line-height:var(--directory-line-height)}
+.course-sidebar .local-toc a{padding-top:5px;padding-bottom:5px;line-height:var(--directory-line-height)}
+@media(min-width:761px){.course-layout,.directory{grid-template-columns:var(--directory-width) minmax(0,1fr);gap:32px}.course-sidebar,.categories{width:100%;min-width:0}body:has(.directory) .shell{width:min(100% - 64px,1120px)}}
