@@ -4,6 +4,11 @@ import html
 import re
 
 LESSONS = [
+ ('foundations', '分布式系统：基础概念', '计算模型与架构'),
+ ('mapreduce', 'MapReduce 与 Hadoop：数据流、调度与容错', '计算模型与架构'),
+ ('grid-computing', 'Grid Computing：资源与跨站点调度', '计算模型与架构'),
+ ('gossip', 'Gossip：传播、扩展性与容错', '成员管理与故障检测'),
+ ('failure-detection', '故障检测与成员管理：Heartbeat 和 SWIM', '成员管理与故障检测'),
  ('gnutella', 'Gnutella：泛洪、消息与搜索', 'P2P 与数据查找'),
  ('bittorrent', 'BitTorrent：分片与 Rarest-First', 'P2P 与数据查找'),
  ('chord', 'Chord：一致性哈希与路由', 'P2P 与数据查找'),

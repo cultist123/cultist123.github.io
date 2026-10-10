@@ -1,0 +1,100 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="个人主页、项目与学习笔记"><title>Grid Computing：资源与跨站点调度 · Nathen</title><link rel="stylesheet" href="/style.css?v=course-sidebar-20261004-2"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231769aa'/%3E%3Cpath d='M9 8h14v16H9zM12 13h8M12 17h8' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"></head><body><div class="shell"><header class="header"><a class="name" href="/">Nathen</a><nav class="nav" aria-label="主导航"><a href="/">首页</a><a href="/blogs/" aria-current="page">博客</a><a href="/projects/">项目</a></nav></header><main id="main-content"><a class="back" href="/posts/p2p/?v=technical-20261009-2">返回文章索引</a><p class="eyebrow">计算模型与架构 · 03 / 15</p><h1>Grid Computing：资源与跨站点调度</h1><p class="lead">更新于 2026 年 10 月 9 日</p><div class="course-layout"><aside id="course-navigation" class="course-sidebar"><div class="sidebar-heading">笔记目录</div><nav aria-label="文章索引"><a class="course-index-link" href="/posts/p2p/?v=technical-20261009-2">分布式系统 · 文章索引</a><a href="/posts/p2p/foundations/?v=technical-20261009-2">01 · 分布式系统：基础概念</a><a href="/posts/p2p/mapreduce/?v=technical-20261009-2">02 · MapReduce 与 Hadoop：数据流、调度与容错</a><a href="/posts/p2p/grid-computing/?v=technical-20261009-2" aria-current="page">03 · Grid Computing：资源与跨站点调度</a><a href="/posts/p2p/gossip/?v=technical-20261009-2">04 · Gossip：传播、扩展性与容错</a><a href="/posts/p2p/failure-detection/?v=technical-20261009-2">05 · 故障检测与成员管理：Heartbeat 和 SWIM</a><a href="/posts/p2p/gnutella/?v=technical-20261009-2">06 · Gnutella：泛洪、消息与搜索</a><a href="/posts/p2p/bittorrent/?v=technical-20261009-2">07 · BitTorrent：分片与 Rarest-First</a><a href="/posts/p2p/chord/?v=technical-20261009-2">08 · Chord：一致性哈希与路由</a><a href="/posts/p2p/kelips/?v=technical-20261009-2">09 · Kelips：分组、元数据与查找</a><a href="/posts/p2p/key-value-store/?v=technical-20261009-2">10 · 键值存储：CAP 与一致性模型</a><a href="/posts/p2p/bloom-filter/?v=technical-20261009-2">11 · Bloom Filter：原理与误判率</a><a href="/posts/p2p/cassandra/?v=technical-20261009-2">12 · Cassandra：副本、读写与故障恢复</a><a href="/posts/p2p/quorum/?v=technical-20261009-2">13 · Cassandra 与 Quorum：交集与一致性级别</a><a href="/posts/p2p/lamport-clock/?v=technical-20261009-2">14 · Lamport Clock：事件顺序</a><a href="/posts/p2p/vector-clock/?v=technical-20261009-2">15 · Vector Clock：因果与并发</a></nav><nav class="local-toc" aria-label="本文目录"><strong>本文目录</strong><a class="toc-level-3" href="#section-1">1. Grid 的基本思想</a><a class="toc-level-3" href="#section-2">2. Job Dependency</a><a class="toc-level-3" href="#section-3">3. Two-Level Scheduling</a><a class="toc-level-4" href="#section-4">Intra-Site 站点内部</a><a class="toc-level-4" href="#section-5">Inter-Site 站点之间</a><a class="toc-level-3" href="#section-6">4. HTCondor</a><a class="toc-level-3" href="#section-7">5. Globus</a><a class="toc-level-3" href="#section-8">6. Security</a><a class="toc-level-3" href="#section-9">7. Summary</a></nav></aside><div class="course-main"><article class="prose course-note"><p>Grid Computing 的目标是把分布在不同地点、不同组织中的计算资源组合起来，为计算密集型任务提供大规模计算能力。它主要面向 <strong>HPC（High Performance Computing）</strong> 场景。</p>
+
+<h3 id="section-1">1. Grid 的基本思想</h3>
+
+<p>传统 HPC 通常依赖昂贵的 Supercomputer，而 Grid 尝试把不同地点已有的计算资源组合起来：<br />
+$$ MIT + Wisconsin + NCSA + ... → Shared Computing Resources$$<br />
+这些资源属于不同组织，因此 Grid 通常具有 <strong>Federated</strong> 特征，即没有单一实体完全控制整个系统。<br />
+Grid 的核心问题包括：Resource Allocation、Job Scheduling、Data Transfer、Monitoring、Security</p>
+
+<h3 id="section-2">2. Job Dependency</h3>
+
+<p>一个大型科学计算任务通常由多个 Job 组成。<br />
+例如：<code>Job 0 → Job 1</code> <code>Job 0 → Job 2</code> <code>Job 1 + Job 2 → Job 3</code>其中 Job 1 和 Job 2 可以并行运行。</p>
+
+<p><img src="/images/core/afb94d5a8a0c.png" alt="Screenshot 2026-10-07 at 11.57.37" style="zoom:33%;" /></p>
+
+<p>Job 通常包含几个阶段：<br />
+$$ Stage In → Execute → Stage Out → Publish $$</p>
+
+<blockquote>
+  <p>Stage In：把输入数据传到执行节点<br />
+  Execute：进行计算<br />
+  Stage Out：把结果传出<br />
+  Publish：发布结果供其他 Job 使用</p>
+</blockquote>
+
+<p>因为输入/输出文件可能达到 GB 级，因此 <strong>Compute Scheduling 和 Data Transfer 同样重要</strong>。</p>
+
+<h3 id="section-3">3. Two-Level Scheduling</h3>
+
+<p>Grid 通常采用两级调度：</p>
+
+<h4 id="section-4">Intra-Site 站点内部</h4>
+
+<p>站点内部自己负责资源调度。例如：<br />
+    Wisconsin：<strong>HTCondor</strong>协议<br />
+    其他站点：PBS 或其他本地 Scheduler</p>
+
+<p>负责：<br />
+    Internal Allocation &amp; Scheduling: 内部资源分配与调度<br />
+    Monitoring: job和machine监控<br />
+    Distribution and Publishing of Files: 文件的监控与发布</p>
+
+<h4 id="section-5">Inter-Site 站点之间</h4>
+
+<p>跨站点使用类似 <strong>Globus</strong> 的协议。<br />
+负责：<br />
+    External Allocation &amp; Scheduling<br />
+    Stage In / Stage Out<br />
+    跨站点资源协调<br />
+Globus 不需要知道每个站点内部细节，只和站点暴露出来的 Scheduler 交互。<br />
+因此：<br />
+    $Inter-Site Scheduler → 选择哪个 Site$<br />
+    $$ Intra-Site Scheduler → 决定该 Site 内具体哪台机器运行 Job$$</p>
+
+<h3 id="section-6">4. HTCondor</h3>
+
+<p>HTCondor 是 Wisconsin 开发的 High-Throughput Computing 系统。它属于 <strong>Cycle-Scavenging</strong> 系统：利用普通工作站空闲时的 CPU 资源执行任务。<br />
+基本模式：$$ Workstation Idle → Request Job → Execute $$<br />
+如果用户开始使用机器：$$ Keyboard / Mouse Activity → Stop Task $$ 就：Kill Task或重新调度到其他机器<br />
+类似系统还有：ETI@Home、Folding@Home. HTCondor 也可以运行在 Dedicated Machines 上。</p>
+
+<h3 id="section-7">5. Globus</h3>
+
+<p>Globus 是 Grid Computing 中的重要基础设施和标准化工具集合。核心组件包括：<br />
+<strong>GridFTP</strong>: 用于 <strong>Wide-Area Bulk Data Transfer</strong>。适合跨站点传输大量数据。<br />
+<strong>GRAM</strong>: Grid Resource Allocation Manager。负责：Submit Job、Locate Job、Cancel Job、Manage Job<br />
+但：**GRAM 本身不是 Scheduler。**它会和 HTCondor、PBS 等站点内部 Scheduler 交互。<br />
+<strong>RLS</strong>:Replica Location Service。作用类似 Naming Service：$$ File Name → Physical Location$$<br />
+<strong>GSI</strong>: Grid Security Infrastructure。负责 Grid 环境中的安全与认证。</p>
+
+<h3 id="section-8">6. Security</h3>
+
+<p>Grid 的 Security 很重要，因为它通常跨多个组织和管理域。Grid 中 Security 比普通单一数据中心更复杂，因为 Grid 是 Federated，而 Cloud 通常由单一 Provider 控制。主要问题包括：</p>
+
+<blockquote>
+  <p><strong>Single Sign-On</strong>: 用户只认证一次，就能运行整个 Job Chain。<br />
+  <strong>Local Security Mapping</strong>: 不同 Site 使用不同安全机制，例如：Kerberos、Unix AccountGrid 需要把统一身份映射到本地权限系统。<br />
+  <strong>Delegation</strong>: 父 Job 可以把 Credentials 传给子 Job，使子任务能够继续访问资源。<br />
+  <strong>Community Authorization</strong>: 允许第三方或组织级授权。</p>
+</blockquote>
+
+<h3 id="section-9">7. Summary</h3>
+
+<p>Grid Computing 的核心可以概括成：<br />
+$$ Distributed Resources + HPC + Two-Level Scheduling + Data Movement + Security$$<br />
+典型结构：$$Application DAG → Inter-Site Scheduling → Choose Site$$<br />
+$$ → Intra-Site Scheduling → Choose Machine → Execute Job $$</p>
+
+<blockquote>
+  <p>HTCondor：站点内部调度<br />
+  Globus：跨站点协调<br />
+  GridFTP：大文件传输<br />
+  GRAM：Job 管理<br />
+  RLS：Replica Location<br />
+  GSI：Security</p>
+</blockquote>
+
+<p>Grid 的很多设计思想后来也影响了 Cloud 和 Datacenter Systems。</p>
+</article><nav class="lesson-pagination" aria-label="相邻文章"><a rel="prev" href="/posts/p2p/mapreduce/?v=technical-20261009-2">← 上一篇<br>MapReduce 与 Hadoop：数据流、调度与容错</a><a rel="next" href="/posts/p2p/gossip/?v=technical-20261009-2">下一篇 →<br>Gossip：传播、扩展性与容错</a></nav></div></div><button class="course-menu-button" aria-controls="course-navigation" aria-expanded="false">☰ 目录</button><script>const courseMenu=document.querySelector('.course-menu-button');const courseSidebar=document.querySelector('.course-sidebar');courseMenu.addEventListener('click',()=>{const open=courseMenu.getAttribute('aria-expanded')!=='true';courseMenu.setAttribute('aria-expanded',String(open));courseSidebar.classList.toggle('is-open',open);});courseSidebar.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}));document.addEventListener('keydown',e=>{if(e.key==='Escape'){courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}});</script><script>window.MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js"></script></main><footer class="footer"><span>© 2026 Nathen</span><span>学习、构建与记录。</span></footer></div></body></html>

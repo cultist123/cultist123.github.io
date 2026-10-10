@@ -1,0 +1,99 @@
+<p>Grid Computing 的目标是把分布在不同地点、不同组织中的计算资源组合起来，为计算密集型任务提供大规模计算能力。它主要面向 <strong>HPC（High Performance Computing）</strong> 场景。</p>
+
+<h3>1. Grid 的基本思想</h3>
+
+<p>传统 HPC 通常依赖昂贵的 Supercomputer，而 Grid 尝试把不同地点已有的计算资源组合起来：<br />
+$$ MIT + Wisconsin + NCSA + ... → Shared Computing Resources$$<br />
+这些资源属于不同组织，因此 Grid 通常具有 <strong>Federated</strong> 特征，即没有单一实体完全控制整个系统。<br />
+Grid 的核心问题包括：Resource Allocation、Job Scheduling、Data Transfer、Monitoring、Security</p>
+
+<h3>2. Job Dependency</h3>
+
+<p>一个大型科学计算任务通常由多个 Job 组成。<br />
+例如：<code>Job 0 → Job 1</code> <code>Job 0 → Job 2</code> <code>Job 1 + Job 2 → Job 3</code>其中 Job 1 和 Job 2 可以并行运行。</p>
+
+<p><img src="/images/core/afb94d5a8a0c.png" alt="Screenshot 2026-10-07 at 11.57.37" style="zoom:33%;" /></p>
+
+<p>Job 通常包含几个阶段：<br />
+$$ Stage In → Execute → Stage Out → Publish $$</p>
+
+<blockquote>
+  <p>Stage In：把输入数据传到执行节点<br />
+  Execute：进行计算<br />
+  Stage Out：把结果传出<br />
+  Publish：发布结果供其他 Job 使用</p>
+</blockquote>
+
+<p>因为输入/输出文件可能达到 GB 级，因此 <strong>Compute Scheduling 和 Data Transfer 同样重要</strong>。</p>
+
+<h3>3. Two-Level Scheduling</h3>
+
+<p>Grid 通常采用两级调度：</p>
+
+<h4>Intra-Site 站点内部</h4>
+
+<p>站点内部自己负责资源调度。例如：<br />
+    Wisconsin：<strong>HTCondor</strong>协议<br />
+    其他站点：PBS 或其他本地 Scheduler</p>
+
+<p>负责：<br />
+    Internal Allocation &amp; Scheduling: 内部资源分配与调度<br />
+    Monitoring: job和machine监控<br />
+    Distribution and Publishing of Files: 文件的监控与发布</p>
+
+<h4>Inter-Site 站点之间</h4>
+
+<p>跨站点使用类似 <strong>Globus</strong> 的协议。<br />
+负责：<br />
+    External Allocation &amp; Scheduling<br />
+    Stage In / Stage Out<br />
+    跨站点资源协调<br />
+Globus 不需要知道每个站点内部细节，只和站点暴露出来的 Scheduler 交互。<br />
+因此：<br />
+    $Inter-Site Scheduler → 选择哪个 Site$<br />
+    $$ Intra-Site Scheduler → 决定该 Site 内具体哪台机器运行 Job$$</p>
+
+<h3>4. HTCondor</h3>
+
+<p>HTCondor 是 Wisconsin 开发的 High-Throughput Computing 系统。它属于 <strong>Cycle-Scavenging</strong> 系统：利用普通工作站空闲时的 CPU 资源执行任务。<br />
+基本模式：$$ Workstation Idle → Request Job → Execute $$<br />
+如果用户开始使用机器：$$ Keyboard / Mouse Activity → Stop Task $$ 就：Kill Task或重新调度到其他机器<br />
+类似系统还有：ETI@Home、Folding@Home. HTCondor 也可以运行在 Dedicated Machines 上。</p>
+
+<h3>5. Globus</h3>
+
+<p>Globus 是 Grid Computing 中的重要基础设施和标准化工具集合。核心组件包括：<br />
+<strong>GridFTP</strong>: 用于 <strong>Wide-Area Bulk Data Transfer</strong>。适合跨站点传输大量数据。<br />
+<strong>GRAM</strong>: Grid Resource Allocation Manager。负责：Submit Job、Locate Job、Cancel Job、Manage Job<br />
+但：**GRAM 本身不是 Scheduler。**它会和 HTCondor、PBS 等站点内部 Scheduler 交互。<br />
+<strong>RLS</strong>:Replica Location Service。作用类似 Naming Service：$$ File Name → Physical Location$$<br />
+<strong>GSI</strong>: Grid Security Infrastructure。负责 Grid 环境中的安全与认证。</p>
+
+<h3>6. Security</h3>
+
+<p>Grid 的 Security 很重要，因为它通常跨多个组织和管理域。Grid 中 Security 比普通单一数据中心更复杂，因为 Grid 是 Federated，而 Cloud 通常由单一 Provider 控制。主要问题包括：</p>
+
+<blockquote>
+  <p><strong>Single Sign-On</strong>: 用户只认证一次，就能运行整个 Job Chain。<br />
+  <strong>Local Security Mapping</strong>: 不同 Site 使用不同安全机制，例如：Kerberos、Unix AccountGrid 需要把统一身份映射到本地权限系统。<br />
+  <strong>Delegation</strong>: 父 Job 可以把 Credentials 传给子 Job，使子任务能够继续访问资源。<br />
+  <strong>Community Authorization</strong>: 允许第三方或组织级授权。</p>
+</blockquote>
+
+<h3>7. Summary</h3>
+
+<p>Grid Computing 的核心可以概括成：<br />
+$$ Distributed Resources + HPC + Two-Level Scheduling + Data Movement + Security$$<br />
+典型结构：$$Application DAG → Inter-Site Scheduling → Choose Site$$<br />
+$$ → Intra-Site Scheduling → Choose Machine → Execute Job $$</p>
+
+<blockquote>
+  <p>HTCondor：站点内部调度<br />
+  Globus：跨站点协调<br />
+  GridFTP：大文件传输<br />
+  GRAM：Job 管理<br />
+  RLS：Replica Location<br />
+  GSI：Security</p>
+</blockquote>
+
+<p>Grid 的很多设计思想后来也影响了 Cloud 和 Datacenter Systems。</p>

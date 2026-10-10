@@ -1,0 +1,124 @@
+<p>MapReduce 是一种用于大规模数据处理的分布式计算模型：<br />
+$$Input → Map → Shuffle → Reduce → Output$$<br />
+<strong>Map 负责并行处理，Shuffle 负责按 Key 重新组织数据，Reduce 负责聚合结果。</strong></p>
+
+<h3>1. MapReduce</h3>
+
+<h4>Map</h4>
+
+<p>Map 将输入转换成 <code>&lt;key, value&gt;</code>。<br />
+例如 WordCount：<code>hello world hello</code><br />
+Map 输出：<code>&lt;hello,1&gt; &lt;world,1&gt; &lt;hello,1&gt;</code><br />
+不同 Map Task 相互独立，因此可以并行执行。</p>
+
+<h4>Shuffle &amp; Reduce</h4>
+
+<p>Shuffle 的规则：<strong>Same Key → Same Reducer</strong> 相同 key 的数据会被送给同一个 Reducer<br />
+例如：<code>&lt;cat,1&gt; &lt;dog,1&gt; &lt;cat,1&gt;</code><br />
+经过 Shuffle：<code>cat → [1,1]</code>    <code>dog → [1]</code><br />
+然后 Reduce：<code>&lt;cat,2&gt;</code>    <code>&lt;dog,1&gt;</code><br />
+因此 <code>reduce()</code> 的调用次数取决于 <strong>distinct keys 的数量</strong>，而不是 Map 输出记录数量。每一个不同的 key，调用一次 reduce()。</p>
+
+<h4>Partition</h4>
+
+<p>系统通过 Partition Function 决定数据进入哪个 Reducer：<br />
+<code>hash(key) % number_of_reducers</code><br />
+Map Output 会按照 Key 排序，Reducer 再 Merge 来自不同 Mapper 的数据。<br />
+Map 和 Reduce 之间存在 <strong>Barrier</strong>，保证 Reduce 获得完整的 Map 输出。</p>
+
+<hr />
+
+<h3>2. MapReduce 的典型应用</h3>
+
+<p><strong>WordCount</strong><br />
+<code>Map: word → &lt;word,1&gt;</code><br />
+<code>Reduce: &lt;word,[1,1,...]&gt; → &lt;word,count&gt;</code></p>
+
+<p><strong>Reverse Web-Link</strong><br />
+如果 <code>&lt;a,b&gt;</code> 表示 <code>a → b</code>：<code>Map: &lt;a,b&gt; → &lt;b,a&gt;</code><br />
+这样 Shuffle 后即可得到：<code>b → [所有指向 b 的网页]</code></p>
+
+<p><strong>Global Maximum / Percentage</strong><br />
+多个 Reducer 相互独立，不能直接共享全局状态。<br />
+因此全局统计通常需要第二个 MapReduce Job：<code>MR1 → 局部统计 → MR2 → 全局统计</code><br />
+例如寻找最大 Word Count，可以让第二轮 Map 输出：<code>&lt;1,(word,count)&gt;</code><br />
+所有记录 Key 都是 <code>1</code>，因此会进入同一个 Reducer。<br />
+Chain another MapReduce job after above one: 本质上是前一个mapreducer先聚合并行统计,之后再令key=1发到一个服务器进行global变量.</p>
+
+<p><strong>Global Sort</strong></p>
+
+<p>普通任务通常使用 Hash Partitioning；需要全局排序时使用 <strong>Range Partitioning</strong>，保证不同 Reducer 负责连续的数据范围。</p>
+
+<hr />
+
+<h3>3. Hadoop</h3>
+
+<p>MapReduce 描述计算模型，而 Hadoop 负责真正执行这些分布式任务。</p>
+
+<p><img src="/images/core/1a4bc512434d.png" alt="Screenshot 2026-10-06 at 20.29.23" style="zoom:40%;" /></p>
+
+<p>整体数据流：$$ 原始输入 → DFS → Map → Local Disk → Shuffle → Reduce → DFS $$</p>
+
+<ul>
+<li>Map Input：Distributed File System<br />
+Map Output：Local Disk</li>
+<li>Reduce Input：从多个 Mapper的Local Disk 获取<br />
+Reduce Output：Distributed File System</li>
+</ul>
+
+<p>常见 DFS 包括 <strong>GFS</strong> 和 <strong>HDFS</strong>。<br />
+用户主要编写 Map、Reduce 和 Partition Function；任务调度、数据传输和故障恢复由系统处理。</p>
+
+<hr />
+
+<h3>4. YARN</h3>
+
+<p>YARN（Yet Another Resource Negotiator）负责 Hadoop 的资源管理与任务调度。<br />
+Container 可以简单理解为：$$Container = CPU + Memory$$</p>
+
+<ul>
+<li>三个核心组件：<br />
+<strong>Resource Manager（RM）</strong>：Cluster, 负责整个集群的<strong>资源管理和调度（scheduling）</strong><br />
+<strong>Node Manager（NM）</strong>：Server, 每台机器上的管理者，负责启动/监控 container<br />
+<strong>Application Manager（AM）</strong>：Job, 负责<strong>某一个 application/job</strong> 的执行和协调，会向 RM 申请资源</li>
+<li>资源申请过程：$$AM → RM 请求资源 → RM 分配 Node → AM 请求 NM 启动 Task$$</li>
+</ul>
+
+<hr />
+
+<h3>5. Fault Tolerance</h3>
+
+<p>Node Manager 会持续向 Resource Manager 发送 <strong>Heartbeat</strong>。<br />
+如果服务器停止 Heartbeat：$Timeout → RM 检测故障 → 通知 AM → 在其他机器 Restart Task$<br />
+Task 本身失败也可以重新执行。<br />
+Reduce 输出通常采用：$Temporary File → 完成 → Rename$<br />
+避免重复执行的 Task 同时破坏最终输出。<br />
+AM Failure 可以由 RM 重启；RM Failure 可以通过 Checkpoint 和备用 RM 恢复。</p>
+
+<hr />
+
+<h3>6. Straggler</h3>
+
+<p>没有失败但运行异常慢的 Task 称为 <strong>Straggler</strong>。<br />
+一个 Straggler 可能因为 Barrier 拖慢整个 Job，因此可以使用 <strong>Speculative Execution</strong>：<br />
+$$ 原 Task 很慢 → 另一台机器运行副本 → 谁先完成用谁$$<br />
+本质是：<strong>用额外计算资源减少慢节点造成的延迟。</strong></p>
+
+<hr />
+
+<h3>7. Data Locality</h3>
+
+<p>分布式计算中，移动大量数据的成本很高，因此 MapReduce 尽量：<strong>Move computation to data.</strong><br />
+调度优先级：$$ Same Machine &gt; Same Rack &gt; Anywhere$$<br />
+HDFS/GFS 会保存多个数据 Replica，这既提高 Fault Tolerance，也增加了 Data Locality 的机会。</p>
+
+<hr />
+
+<h3>8.  Summary</h3>
+
+<p>设计 MapReduce 时最重要的问题是：<strong>哪些数据需要放在一起处理？</strong><br />
+因为：$$Same Key → Same Reducer$$<br />
+所以通常按照：$$确定需要聚合的数据 → 设计 Key → Map → Shuffle → Reduce$$<br />
+例如 <code>(a,b)</code> 表示 <code>a follows b</code>，如果统计 b 的 followers：<code>Map: (a,b) → &lt;b,a&gt;</code><br />
+Shuffle：<code>b → [a,c,d,...]</code>    Reduce：<code>&lt;b, follower_count&gt;</code><br />
+因此 MapReduce 概括为：<strong>Map 决定数据形式，Key 决定数据去哪里，Shuffle 完成分组，Reduce 完成聚合。</strong></p>

@@ -1,0 +1,136 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="个人主页、项目与学习笔记"><title>Gossip：传播、扩展性与容错 · Nathen</title><link rel="stylesheet" href="/style.css?v=course-sidebar-20261004-2"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231769aa'/%3E%3Cpath d='M9 8h14v16H9zM12 13h8M12 17h8' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"></head><body><div class="shell"><header class="header"><a class="name" href="/">Nathen</a><nav class="nav" aria-label="主导航"><a href="/">首页</a><a href="/blogs/" aria-current="page">博客</a><a href="/projects/">项目</a></nav></header><main id="main-content"><a class="back" href="/posts/p2p/?v=technical-20261009-2">返回文章索引</a><p class="eyebrow">成员管理与故障检测 · 04 / 15</p><h1>Gossip：传播、扩展性与容错</h1><p class="lead">更新于 2026 年 10 月 9 日</p><div class="course-layout"><aside id="course-navigation" class="course-sidebar"><div class="sidebar-heading">笔记目录</div><nav aria-label="文章索引"><a class="course-index-link" href="/posts/p2p/?v=technical-20261009-2">分布式系统 · 文章索引</a><a href="/posts/p2p/foundations/?v=technical-20261009-2">01 · 分布式系统：基础概念</a><a href="/posts/p2p/mapreduce/?v=technical-20261009-2">02 · MapReduce 与 Hadoop：数据流、调度与容错</a><a href="/posts/p2p/grid-computing/?v=technical-20261009-2">03 · Grid Computing：资源与跨站点调度</a><a href="/posts/p2p/gossip/?v=technical-20261009-2" aria-current="page">04 · Gossip：传播、扩展性与容错</a><a href="/posts/p2p/failure-detection/?v=technical-20261009-2">05 · 故障检测与成员管理：Heartbeat 和 SWIM</a><a href="/posts/p2p/gnutella/?v=technical-20261009-2">06 · Gnutella：泛洪、消息与搜索</a><a href="/posts/p2p/bittorrent/?v=technical-20261009-2">07 · BitTorrent：分片与 Rarest-First</a><a href="/posts/p2p/chord/?v=technical-20261009-2">08 · Chord：一致性哈希与路由</a><a href="/posts/p2p/kelips/?v=technical-20261009-2">09 · Kelips：分组、元数据与查找</a><a href="/posts/p2p/key-value-store/?v=technical-20261009-2">10 · 键值存储：CAP 与一致性模型</a><a href="/posts/p2p/bloom-filter/?v=technical-20261009-2">11 · Bloom Filter：原理与误判率</a><a href="/posts/p2p/cassandra/?v=technical-20261009-2">12 · Cassandra：副本、读写与故障恢复</a><a href="/posts/p2p/quorum/?v=technical-20261009-2">13 · Cassandra 与 Quorum：交集与一致性级别</a><a href="/posts/p2p/lamport-clock/?v=technical-20261009-2">14 · Lamport Clock：事件顺序</a><a href="/posts/p2p/vector-clock/?v=technical-20261009-2">15 · Vector Clock：因果与并发</a></nav><nav class="local-toc" aria-label="本文目录"><strong>本文目录</strong><a class="toc-level-3" href="#section-1">1. Multicast</a><a class="toc-level-3" href="#section-2">2. Gossip</a><a class="toc-level-3" href="#section-3">3. Push / Pull Gossip</a><a class="toc-level-4" href="#section-4">Push</a><a class="toc-level-4" href="#section-5">Pull</a><a class="toc-level-3" href="#section-6">4. Gossip 传播速度</a><a class="toc-level-3" href="#section-7">5. Push vs. Pull</a><a class="toc-level-3" href="#section-8">6. Fault Tolerance</a><a class="toc-level-4" href="#section-9">Packet Loss</a><a class="toc-level-4" href="#section-10">Node Failure</a><a class="toc-level-3" href="#section-11">7. Topology-Aware Gossip</a><a class="toc-level-3" href="#section-12">8. Gossip 的实际应用</a></nav></aside><div class="course-main"><article class="prose course-note"><p>Gossip（Epidemic Protocol）模仿信息传播：节点收到消息后，周期性随机选择其他节点继续传播。主要用于解决大规模分布式系统中的 <strong>Multicast、Scalability 和 Fault Tolerance</strong>。</p>
+
+<h3 id="section-1">1. Multicast</h3>
+
+<p><strong>Multicast</strong>：将一条消息发送给一组节点。主要目标是 <strong>Reliability、Speed、Scalability、Fault Tolerance</strong>。<br />
+<strong>Centralized Multicast</strong> Sender 直接发送给所有节点，实现简单，但需要发送 $$O(N)$$ 条消息，Sender 容易成为瓶颈和单点故障。<br />
+<strong>Tree-Based Multicast</strong>: 节点组成 <strong>Spanning Tree</strong>，消息沿树传播。平衡树、固定 fanout 下传播时间约为：<br />
+$$
+O(\log N)
+$$<br />
+为了保证可靠性可以使用 <strong>ACK / NAK</strong>：<br />
+- <strong>ACK</strong>：确认收到<br />
+  <strong>NAK</strong>：通知未收到，请求重传<br />
+  SRM 使用 NAK，RMTP 使用 ACK，但仍可能产生 $$O(N)$$ 的 ACK/NAK 开销，而且需要维护树结构。</p>
+
+<h3 id="section-2">2. Gossip</h3>
+
+<p>Gossip 不维护固定传播路径。一个节点收到 multicast 消息,从uninfected变成infected , 一个拥有消息<strong>infected node</strong> 每轮随机选择 $$b$$ 个节点发送消息，新收到消息的节点继续周期性 Gossip传播。Gossip 消息使用 UDP 发送。节点分为：</p>
+
+<ul>
+<li><strong>Infected</strong>：已经收到消息<br />
+<strong>Uninfected</strong>：还没有收到消息<br />
+&gt; <strong>Random communication + repeated propagation → global dissemination</strong><br />
+&gt; 主要特点：<strong>Fast、Scalable、Fault-tolerant、Lightweight</strong>。</li>
+</ul>
+
+<p><img src="/images/core/4d8fe1551986.png" alt="image-20261007114011154" style="zoom:50%;" /></p>
+
+<h3 id="section-3">3. Push / Pull Gossip</h3>
+
+<h4 id="section-4">Push</h4>
+
+<p>拥有消息的节点主动发送给随机节点：$$Infected → Random Node$$<br />
+前期 infected 节点较少时效果很好；后期容易把消息重复发送给已经 infected 的节点。</p>
+
+<h4 id="section-5">Pull</h4>
+
+<p>节点主动询问随机节点是否拥有自己缺少的消息。后期 infected 节点很多时，uninfected 节点很容易 Pull 到消息。因此：</p>
+
+<blockquote>
+  <p>**Push 前期更有效，Pull 后期更有效。**可以结合形成 <strong>Push-Pull Gossip</strong>。</p>
+</blockquote>
+
+<h3 id="section-6">4. Gossip 传播速度</h3>
+
+<p>假设每个 infected 节点每轮联系固定数量 <code>b</code> 个节点，感染节点数量近似：<br />
+$$ 1 → 2 → 4 → 8 → 16 → ...$$<br />
+因此传播到大量节点需要：<br />
+$$
+O(\log N)
+$$<br />
+定义 contact rate：<br />
+$$
+\beta=\frac{b}{n}
+$$<br />
+其中 $n$ 为系统规模，$b$为每轮随机选择的目标数。运行约：<br />
+$$
+t=c\log N
+$$<br />
+轮后，绝大多数节点已经收到消息。$log N$ 增长很慢，例如：$$log₂(1000)≈10，log₂(1M)≈20，log₂(1B)≈30。$$</p>
+
+<p><img src="/images/core/768b189dc847.png" alt="image-20261007114044820" style="zoom:50%;" /></p>
+
+<h3 id="section-7">5. Push vs. Pull</h3>
+
+<p>所有 Gossip 在前半段都至少需要：<br />
+$$
+O(\log N)
+$$<br />
+因为固定 fanout 的传播树也需要 $O(log N)$ 层才能覆盖约一半节点。<br />
+达到约 <code>N/2</code> 个 infected 节点后，<strong>Pull 比 Push 更快</strong>。设第 <code>i</code> 轮未感染比例为 $p_i$，每轮 Pull <code>k</code> 次：<br />
+$$
+p_{i+1}=(p_i)^{k+1}
+$$<br />
+未感染比例会 super-exponential 下降，因此 Pull 后半段约为：<br />
+$$
+O(\log\log N)
+$$<br />
+所以如果已经有约一半节点拥有消息：<strong>选择 Pull。</strong></p>
+
+<h3 id="section-8">6. Fault Tolerance</h3>
+
+<p>Gossip 没有固定传播路径，因此丢包或部分节点故障不会直接切断传播。</p>
+
+<h4 id="section-9">Packet Loss</h4>
+
+<p>50% packet loss 可以近似看成：<br />
+$$
+b\rightarrow\frac{b}{2}
+$$<br />
+为了达到相同可靠性，大约需要 <strong>2 倍 rounds</strong>。</p>
+
+<h4 id="section-10">Node Failure</h4>
+
+<p>50% nodes fail 时：<br />
+$$
+n\rightarrow\frac n2,\qquad b\rightarrow\frac b2
+$$<br />
+传播仍可继续。传播刚开始时可能因少数 infected 节点全部失败而停止，但一旦已有多个 infected 节点，Gossip 完全消失的概率会迅速降低。</p>
+
+<h3 id="section-11">7. Topology-Aware Gossip</h3>
+
+<p>真实网络通常有 Rack / Subnet 等层级结构。完全随机选择 Gossip target 会产生大量跨 subnet 通信，使核心 Router 承担约 $O(N)$ load。对于包含 $n_i$ 个节点的 subnet：<br />
+$$
+P(\text{选择本 subnet})=1-\frac1{n_i}
+$$<br />
+即 <strong>大部分消息在本地传播，少量消息跨 subnet</strong>，从而：<br />
+$$
+\text{Router Load}=O(1)
+$$<br />
+同时保持：<br />
+$$
+\text{Dissemination Time}=O(\log N)
+$$</p>
+
+<blockquote>
+  <p><strong>Local communication 为主，Global communication 为辅。</strong></p>
+</blockquote>
+
+<h3 id="section-12">8. Gossip 的实际应用</h3>
+
+<p>Gossip 不只是理论协议，它被用于很多实际分布式系统。典型例子是 <strong>Cassandra</strong>：使用 Gossip 维护集群中的 <strong>membership list</strong>，让节点逐渐知道哪些节点存在以及相关状态。<br />
+Gossip 的核心可以记成：<br />
+$$
+\text{Random + Repeated + Decentralized}
+$$<br />
+它牺牲了严格、固定的传播路径，换来了：<br />
+$$
+\text{Scalability} + \text{Fault Tolerance} + \text{Low Latency}
+$$</p>
+
+<blockquote>
+  <p><strong>Push 前期快，Pull 后期快</strong> ;Gossip 整体传播约为 <strong>$O(\log N)$</strong> ;Pull 后半段可达到 <strong>$O(\log\log N)$</strong><br />
+  随机冗余传播带来较强 <strong>Fault Tolerance</strong>; <strong>Topology-Aware Gossip</strong> 降低核心网络负载</p>
+</blockquote>
+</article><nav class="lesson-pagination" aria-label="相邻文章"><a rel="prev" href="/posts/p2p/grid-computing/?v=technical-20261009-2">← 上一篇<br>Grid Computing：资源与跨站点调度</a><a rel="next" href="/posts/p2p/failure-detection/?v=technical-20261009-2">下一篇 →<br>故障检测与成员管理：Heartbeat 和 SWIM</a></nav></div></div><button class="course-menu-button" aria-controls="course-navigation" aria-expanded="false">☰ 目录</button><script>const courseMenu=document.querySelector('.course-menu-button');const courseSidebar=document.querySelector('.course-sidebar');courseMenu.addEventListener('click',()=>{const open=courseMenu.getAttribute('aria-expanded')!=='true';courseMenu.setAttribute('aria-expanded',String(open));courseSidebar.classList.toggle('is-open',open);});courseSidebar.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}));document.addEventListener('keydown',e=>{if(e.key==='Escape'){courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}});</script><script>window.MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js"></script></main><footer class="footer"><span>© 2026 Nathen</span><span>学习、构建与记录。</span></footer></div></body></html>
