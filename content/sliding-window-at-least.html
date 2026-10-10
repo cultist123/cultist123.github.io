@@ -1,0 +1,32 @@
+<p>一般要写<code>ans += left</code></p>
+
+<p>内层循环结束后,$[left,right]$是不满足要求的,在退出循环的最后一轮$[left-1,right]$,是满足要求的,数组越长越满足要求,$[left-1,right],[left-2,right],...,[0,right]$都满足要求,当固定right时,一共有$left$个满足要求</p>
+
+<p>数组越长越满足要求,right变大更有可能满足要求,所以while放合法内容,测试最短合法区间,left-1为最后一个合法的索引,然后再记录合法值</p>
+
+<p><strong>例题</strong>:<a href="https://leetcode.cn/problems/number-of-substrings-containing-all-three-characters/">包含所有三种字符的子字符串数目</a></p>
+
+<table>
+<thead>
+<tr>
+  <th><strong>问题类型</strong></th>
+  <th><strong>特征性质</strong></th>
+  <th><strong>while 条件</strong></th>
+  <th><strong>循环结束后 ans 增加量</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><strong>越短越合法</strong> (如 LC 713 乘积 $&lt; k$)</td>
+  <td>窗口<strong>变长</strong>可能导致<strong>违规</strong></td>
+  <td><code>while (不合法)</code> 收缩到重新合法</td>
+  <td><strong><code>ans += right - left + 1</code></strong> (当前合法窗口的长度)</td>
+</tr>
+<tr>
+  <td><strong>越长越合法</strong> (如 LC 1358 包含所有字符)</td>
+  <td>窗口<strong>变短</strong>可能导致<strong>违规</strong></td>
+  <td><code>while (合法)</code> 挤压到刚好不合法</td>
+  <td><strong><code>ans += left</code></strong> (合法左端点的个数)</td>
+</tr>
+</tbody>
+</table>

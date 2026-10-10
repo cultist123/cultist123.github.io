@@ -1,0 +1,7 @@
+<p>一般要写<code>ans += right - left +1</code></p>
+
+<p>内层循环结束后,$[left,right]$满足要求,$[left+1,right]$也满足要求,数组越短越满足要求,$[left+1,right],[left+2,right],...,[right,right]$都满足要求,当固定right时,一共有$right - left +1$个满足要求</p>
+
+<p>数组越短越满足要求,right变大更有可能不满足要求,所以while放不合法内容,违规要剔除左边界值,然后再记录合法值</p>
+
+<p><strong>例题</strong>:<a href="https://leetcode.cn/problems/subarray-product-less-than-k/">乘积小于 K 的子数组</a></p>
