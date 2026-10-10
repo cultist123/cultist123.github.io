@@ -4,12 +4,14 @@ import html
 import re
 
 LESSONS = [
- ('gnutella', 'Gnutella：泛洪与 TTL', 'P2P 与数据查找'),
+ ('gnutella', 'Gnutella：泛洪、消息与搜索', 'P2P 与数据查找'),
  ('bittorrent', 'BitTorrent：分片与 Rarest-First', 'P2P 与数据查找'),
  ('chord', 'Chord：一致性哈希与路由', 'P2P 与数据查找'),
+ ('kelips', 'Kelips：分组、元数据与查找', 'P2P 与数据查找'),
+ ('key-value-store', '键值存储：CAP 与一致性模型', '键值存储'),
  ('bloom-filter', 'Bloom Filter：原理与误判率', '键值存储'),
- ('quorum', 'Quorum：交集与多数派', '键值存储'),
- ('cassandra', 'Cassandra：写入、压缩与删除', '键值存储'),
+ ('cassandra', 'Cassandra：副本、读写与故障恢复', '键值存储'),
+ ('quorum', 'Cassandra 与 Quorum：交集与一致性级别', '键值存储'),
  ('lamport-clock', 'Lamport Clock：事件顺序', '逻辑时钟'),
  ('vector-clock', 'Vector Clock：因果与并发', '逻辑时钟'),
 ]
@@ -17,14 +19,7 @@ MENU = """<button class="course-menu-button" aria-controls="course-navigation" a
 MATH = r"""<script>window.MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js"></script>"""
 
 def build(page):
- source=(Path(__file__).parent/'content/p2p.html').read_text()
- source=source.replace('<h2>Key-Value Store</h2>', '')
- # This screenshot introduces vector clocks; keep it with that lesson.
- picture=re.search(r'<p><img src="/images/p2p/vector-clock.png"[^>]* /></p>',source).group(0)
- source=source.replace(picture,'').replace('<h2>Vector Clock</h2>','<h2>Vector Clock</h2>\n'+picture)
- parts=re.split(r'<h2>[^<]+</h2>',source)
- intro=parts.pop(0)
- assert len(parts)==len(LESSONS)
+ parts=[(Path(__file__).parent/f'content/p2p-{slug}.html').read_text() for slug,_,_ in LESSONS]
  rendered=[]
  for content in parts:
   entries=[]
@@ -48,11 +43,10 @@ def build(page):
    topics=''.join(f'<li><a href="/posts/p2p/{slug}/#{anchor}">{html.escape(label)}</a></li>' for level,anchor,label in entries if level=='3')
    rows+=f'<article class="lesson-summary"><h3><a href="/posts/p2p/{slug}/"><span>{i+1:02d}</span> {html.escape(title)}</a></h3><ul>{topics}</ul></article>'
   groups+=f'<section class="lesson-group"><h2>{group}</h2>{rows}</section>'
- page('分布式系统','blogs',f'<a class="back" href="/blogs/#systems">返回博客</a><p class="eyebrow">Distributed Systems</p><h1>分布式系统</h1><p class="lead">8 篇技术文章 · 更新于 2026 年 10 月 4 日</p><div class="course-layout">{sidebar()}<div class="course-main"><p>按主题阅读，或从下方索引直接跳到具体知识点。</p>{groups}</div></div>'+MENU,'posts/p2p/index.html')
+ page('分布式系统','blogs',f'<a class="back" href="/blogs/#systems">返回博客</a><p class="eyebrow">Distributed Systems</p><h1>分布式系统</h1><p class="lead">{len(LESSONS)} 篇技术文章 · 更新于 2026 年 10 月 9 日</p><div class="course-layout">{sidebar()}<div class="course-main"><p>按主题阅读，或从下方索引直接跳到具体知识点。</p>{groups}</div></div>'+MENU,'posts/p2p/index.html')
  for i,((slug,title,group),(content,entries)) in enumerate(zip(LESSONS,rendered)):
   prev=LESSONS[i-1] if i else None;next_=LESSONS[i+1] if i+1<len(LESSONS) else None
   previous=f'<a rel="prev" href="/posts/p2p/{prev[0]}/">← 上一篇<br>{html.escape(prev[1])}</a>' if prev else '<span></span>'
   following=f'<a rel="next" href="/posts/p2p/{next_[0]}/">下一篇 →<br>{html.escape(next_[1])}</a>' if next_ else '<span></span>'
-  if i==0:content=intro+content
-  body=f'<a class="back" href="/posts/p2p/">返回文章索引</a><p class="eyebrow">{group} · {i+1:02d} / 08</p><h1>{html.escape(title)}</h1><p class="lead">2026 年 10 月 4 日</p><div class="course-layout">{sidebar(slug,entries)}<div class="course-main"><article class="prose course-note">{content}</article><nav class="lesson-pagination" aria-label="相邻文章">{previous}{following}</nav></div></div>'
+  body=f'<a class="back" href="/posts/p2p/">返回文章索引</a><p class="eyebrow">{group} · {i+1:02d} / {len(LESSONS):02d}</p><h1>{html.escape(title)}</h1><p class="lead">更新于 2026 年 10 月 9 日</p><div class="course-layout">{sidebar(slug,entries)}<div class="course-main"><article class="prose course-note">{content}</article><nav class="lesson-pagination" aria-label="相邻文章">{previous}{following}</nav></div></div>'
   page(title,'blogs',body+MENU+MATH,f'posts/p2p/{slug}/index.html')

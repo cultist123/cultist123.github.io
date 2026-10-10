@@ -3,22 +3,35 @@
 <p>peer to peer 节点组织方式<br />
 每个节点可以请求、提供、转发数据</p>
 
-<h2>Gnutella 找数据</h2>
+<h3>1. 核心思想</h3>
 
-<h3>1. Gnutella &amp;flooding&amp;TTL&amp;hop</h3>
+<p>Napster：</p>
 
-<p>不知道就问peer,peer不知道就问peer的peer,如果每个patent都有两个child,这是一个二叉树<br />
-一个一个领居接着问是泛洪<br />
-TTL = time to live 如果system有环就会无限泛洪,所以需要引入hop限制步数<br />
-hop 可以理解为一步<br />
-Gnutella 本质是个图论问题</p>
+<blockquote>
+  <p>文件存在 Peer<br />
+  文件索引存在中央 Server<br />
+  问题：Server bottleneck + single point of failure</p>
+</blockquote>
+
+<p>Gnutella：</p>
+
+<blockquote>
+  <p><strong>No central server</strong><br />
+  每个 Peer 同时是 Client + Server → <strong>Servent</strong><br />
+  Peers 组成 <strong>Overlay Graph</strong><br />
+  每个 Peer 保存自己的文件和 neighbor 信息</p>
+</blockquote>
+
+<hr />
 
 <h3>2. 数据结构</h3>
 
 <p>完全二叉树$ N=2^m-1 $ N为节点数, $m-1$ 为层数量 $[0:m-1]$<br />
 $TTL\ge \max_v distance(s,v)$ $  TTL_{\min} = \max_{u,v} distance(u,v)  $<br />
-distributed system trade-off:更多的连接=更短的routing path,更多 connection state<br />
+distributed system trade-off: 更多的连接=更短的routing path,更多 connection state<br />
 child可以沿着parent向上routing</p>
+
+<hr />
 
 <h3>3. 假设 $A \longleftrightarrow B$ 建立connection什么是connection state</h3>
 
@@ -26,32 +39,263 @@ child可以沿着parent向上routing</p>
 连接状态: 正在连接/关闭了, 超时计数器<br />
 协议状态: 数据发到百分之多少了, 缓冲区是否有消息等待发送</p>
 
-<h2>BitTorrent 拿数据</h2>
+<hr />
 
-<h3>1. Peer-to-Peer file sharing&amp;BitTorrent&amp;shard</h3>
+<h3>4. 五种 Message</h3>
+
+<table>
+<thead>
+<tr>
+  <th>Message</th>
+  <th>作用</th>
+  <th>路由方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>Query</td>
+  <td>搜索文件</td>
+  <td>Flooding</td>
+</tr>
+<tr>
+  <td>QueryHit</td>
+  <td>返回搜索结果</td>
+  <td>Reverse Path</td>
+</tr>
+<tr>
+  <td>Ping</td>
+  <td>寻找/维护 Peers</td>
+  <td>Flooding</td>
+</tr>
+<tr>
+  <td>Pong</td>
+  <td>回复 Ping</td>
+  <td>Reverse Path</td>
+</tr>
+<tr>
+  <td>Push</td>
+  <td>处理 Firewall</td>
+  <td>Reverse Path 到 responder</td>
+</tr>
+</tbody>
+</table>
+
+<blockquote>
+  <p>Query ↔ QueryHit：找文件<br />
+  Ping ↔ Pong：维护 Neighbor<br />
+  Push：解决 Firewall</p>
+</blockquote>
+
+<hr />
+
+<h3>5. Query / Flooding</h3>
+
+<h4>Gnutella &amp;flooding&amp;TTL&amp;hop</h4>
+
+<p>不知道就问peer,peer不知道就问peer的peer,如果每个patent都有两个child,这是一个二叉树<br />
+一个一个领居接着问是泛洪<br />
+TTL = time to live 如果system有环就会无限泛洪,所以需要引入hop限制步数<br />
+hop 可以理解为一步<br />
+Gnutella 本质是个图论问题</p>
+
+<p><img src="/images/p2p/d3df6a1e967f.png" alt="Screenshot 2026-10-07 at 15.22.36" />搜索文件时：A → neighbors → neighbors → ...<br />
+规则：</p>
+
+<ol>
+<li>Query 发给所有 neighbors，除了发送给自己的那个 Peer</li>
+<li>每个 Query 有唯一 <strong>DescriptorID</strong></li>
+<li>相同 DescriptorID 的 Query 第二次收到 → <strong>Drop</strong></li>
+<li>防止重复 Flooding</li>
+</ol>
+
+<hr />
+
+<h3>6. TTL</h3>
+
+<p>TTL = Query 最多还能传播多少个 hop<br />
+每经过一个 Peer：TTL = TTL - 1<br />
+TTL = 0：不再继续 Forward<br />
+所以：<strong>TTL ↑ → 搜索范围 ↑ → 找到文件概率 ↑ → Message Overhead ↑</strong></p>
+
+<hr />
+
+<h3>7. 策略</h3>
+
+<p>原路返回数据,相同ID后收到的丢弃,以牙还牙给提供好下载速度的节点提供上传速度</p>
+
+<h4>QueryHit</h4>
+
+<p><img src="/images/p2p/8a485050c283.png" alt="image-20261007152302132" /></p>
+
+<p>如果某 Peer 找到文件：<br />
+Query：A → B → C → D<br />
+QueryHit：A ← B ← C ← D<br />
+即：<strong>QueryHit 沿 Query 的 Reverse Path 返回</strong><br />
+QueryHit 包含：IP, Port, File information, Servent ID</p>
+
+<h4>文件下载</h4>
+
+<p>QueryHit 回到 Requestor 后：Requestor → Responder<br />
+直接建立 <strong>TCP / HTTP</strong> 连接下载。</p>
+
+<blockquote>
+  <p><strong>文件不会沿 Query/QueryHit 的 Overlay Path 传输。</strong><br />
+  搜索走 Gnutella Overlay；<br />
+  真正文件传输是 Peer-to-Peer Direct Connection。</p>
+</blockquote>
+
+<h4>Firewall + Push</h4>
+
+<p>正常：Requestor → Responder<br />
+如果 Responder 在 Firewall 后：Requestor 无法主动连接 Responder。</p>
+
+<p>解决：</p>
+
+<ol>
+<li>Requestor 发送 <strong>Push</strong></li>
+<li>Push 到达 Responder</li>
+<li><p>Responder 主动建立 TCP：Responder → Requestor</p></li>
+<li><p>Requestor 再发送 HTTP GET</p></li>
+<li>开始文件传输</li>
+</ol>
+
+<p>记：<strong>谁在墙里，谁主动往外建立tcp连接。</strong></p>
+
+<hr />
+
+<h3>8. Ping / Pong</h3>
+
+<p>目的：<strong>更新 Neighbor List</strong><br />
+因为 Peer 会不断：Join, Leave, Fail</p>
+
+<p>流程：<br />
+Ping → Flooding<br />
+Pong → Reverse Path</p>
+
+<blockquote>
+  <p>Pong 包含：IP, Port, Number of files shared, KB shared</p>
+</blockquote>
+
+<hr />
+
+<h3>9. Gnutella 防止流量爆炸</h3>
+
+<p><strong>Duplicate</strong><br />
+相同：DescriptorID + Message Type   再次收到 → <strong>Drop</strong> (QueryHit 和 Pong没有这个机制,只有Query和Ping有)<br />
+<strong>TTL</strong><br />
+限制 Flooding 最大距离。</p>
+
+<hr />
+
+<h3>10. Gnutella Problems</h3>
+
+<p><strong>Flooding</strong>: 搜索产生大量 Message。<br />
+<strong>Ping/Pong</strong>:曾占大量网络 Traffic。<br />
+<strong>Repeated Query</strong>: 相同关键词反复搜索。<br />
+解决：Cache Query / QueryHit<br />
+<strong>Freeloader</strong>: 只下载，不上传文件。</p>
+
+<hr />
+
+<h3>11. Summary</h3>
+
+<p>Gnutella：<strong>No Server + Overlay Graph + Flooding</strong><br />
+搜索：</p>
+
+<blockquote>
+  <p>Query → Flooding<br />
+  QueryHit → Reverse Path</p>
+</blockquote>
+
+<p>维护 Peer：</p>
+
+<blockquote>
+  <p>Ping → Flooding<br />
+  Pong → Reverse Path</p>
+</blockquote>
+
+<p>防火墙：</p>
+
+<blockquote>
+  <p>Push → 让 Firewall 内的 Responder 主动连接 Requestor</p>
+</blockquote>
+
+<p>控制 Flooding：</p>
+
+<blockquote>
+  <p>TTL + DescriptorID 去重</p>
+</blockquote>
+
+<p>最大问题：</p>
+
+<blockquote>
+  <p><strong>Flooding → O(N) Message Overhead</strong></p>
+</blockquote>
+
+<h3>1.  Blocks/shard</h3>
+
+<p>Block-based 可以从多个 peer <strong>并行下载</strong>不同 block，从而获得 parallelism、load balancing 和更好的 availability。<br />
+如果整个文件只能从一个 peer 下载，就无法利用其他 peer 的上传带宽，速度受单个 peer 限制，而且该 peer 离开或失败会中断下载。</p>
+
+<h3>2. Rarest-First</h3>
+
+<p>BitTorrent 将文件拆成多个 block/shard，并可以从不同 peer 下载。 <strong>优先下载当前最稀有的 block</strong>。<br />
+$$
+availability(x)=\text{拥有 block }x\text{ 的 peer 数}
+$$<br />
+选择：<br />
+$$
+\arg\min_x availability(x)
+$$<br />
+目的：优先复制稀有 block，避免持有它的 peer 离开后该 block 消失，从而导致整个文件无法恢复。</p>
+
+<h3>3. Most-Common-First 的问题</h3>
+
+<p>如果优先下载最常见的 block，稀有 block 会长期得不到复制；一旦持有稀有 block 的 peer 离开：<br />
+$$
+availability(rare)=0
+$$<br />
+即使其他 block 有很多副本，完整文件仍无法恢复。  <strong>文件可用性受最稀有 block 限制。</strong></p>
+
+<h3>4. 分析方法</h3>
+
+<p>统计每个 block 的副本数 → rarest-first 选择最少的 → tie 按题目规则处理。<br />
+新增 peer 时，只更新它所拥有 block 的 $availability$，然后重新比较。</p>
+
+<h3>5. Peer-to-Peer file sharing&amp;BitTorrent&amp;shard</h3>
 
 <p>Parallelism: 不单个服务器作为瓶颈,每个peer都承担download和upload的任务<br />
 Load distributionFile切成shard本使得文件分散,进行并行传播和并行下载,利用别的节点的空闲带宽,是一种多对多,one download one upload in swarm,分散上传压力<br />
 Better availability: Rarest-First 防止断电找不到数据</p>
 
-<h3>2. Rarest-First下载 VS Most- common- first下载</h3>
+<h3>6. Rarest-First下载 VS Most- common- first下载</h3>
 
-<p>优先下载在系统里副本最少的shard,因为如果出现意外下线,有可能永远拿不到完整的文件<br />
-目的是提高rare shard availability,让shard distribution更均匀从而降低某个shard消失的风险<br />
-因为备份有传播效应,所以原来已经common的会更common所以要下载rare让所有的均衡</p>
+<p>文件不完整: 优先下载在系统里副本最少的shard,因为如果出现意外下线,就丢失掉了这个topic,有可能永远拿不到完整的文件<br />
+availability:  目的是提高rare shard availability,让shard distribution更均匀从而降低某个shard消失的风险<br />
+BitTorrent优势是parallelism: 因为备份有传播效应,所以原来已经common的会更common所以要下载rare让所有的均衡,防止single-peer bottleneck</p>
 
-<h2>Chord</h2>
+<h3>1. Chord</h3>
 
-<p>Chord Ring 的ID space: $2^m$(并不一定1 ID to 1 Machine 可以没有对应的node)</p>
+<p>Chord Ring 的ID space: $2^m$(并不一定1 ID to 1 Machine 可以没有对应的node)<br />
+Node: 指的是在finger table的点</p>
 
-<h3>1. successor 与  consistent hashing ring 与Finger Table</h3>
+<h4>1. successor 与  consistent hashing ring 与Finger Table</h4>
 
 <p>本质上是一种映射,当要找的node找不到时,就像指针一样,顺时针找下一个node, 最基本是一种$O(N)$的链表,然后引出Finger Table<br />
-Finger Table: 从认识的 Node 里面，找一个最接近目标、但还没有超过目标的 Node，然后跳过去。$start_i=(n+2^{i-1})\bmod 2^m$<br />
-$finger[i]=successor(start_i)$<br />
-时间$O(\log N)$ 按照$2^0,\ 2^1,\ 2^2,\ 2^3,\ldots$建立finger table, 所以每次跳跃每次缩小一半的距离</p>
+Finger Table: 从认识的 Node 里面，找一个最接近目标、但还没有超过目标的 Node，然后跳过去。<br />
+$$
+start_i=(n+2^{i-1})\bmod 2^m
+$$</p>
+
+<p>$$
+finger[i]=successor(start_i)
+$$</p>
+
+<p>时间$O(\log N)$ 按照$2^0,\ 2^1,\ 2^2,\ 2^3,\ldots$建立finger table, 所以每次跳跃每次缩小一半的距离</p>
 
 <p><img src="/images/p2p/chord-ring.png" alt="Distributed caching strategies &amp; sharding techniques for high performance" style="zoom:50%;" /></p>
+
+<p><img src="/images/p2p/6010b0cc994b.png" alt="Screenshot 2026-10-04 at 22.33.06" /></p>
 
 <pre><code>step1
                     0  ← Node 0
@@ -84,9 +328,9 @@ step5
 successor(4) = 5
 </code></pre>
 
-<h3>2. Chord Routing 的原则与跳法</h3>
+<h4>2. Chord Routing 的原则与跳法</h4>
 
-<p>closest preceding finger: 从 finger table 里选择一个最接近 key、但还没有超过 key 的 node。<br />
+<p>closest preceding finger: 从 finger table 里选择一个最大的、但还没有超过 key 的 node。如果所有的node in finger table都超过k,说明要找自己的successor了.<br />
 算法: 在 Node \(n\)，如果：$ k\in(n, successor(n)] $<br />
     那么 $successor(k)=successor(n) $直接结束。<br />
     否则：$\text{forward to closest preceding finger}$<br />
@@ -112,22 +356,154 @@ successor就是答案    finger table里
                           ↺
 </code></pre>
 
-<h3>3. Key hash</h3>
+<h4>3. Key hash</h4>
 
 <pre><code>key       = "cat.jpg"     ← 我是谁
 value     = 猫图片         ← 我的东西
 hash(key) = 4             ← 我的地址编号
-Node 5                     ← 最终住的机器
+Node 5                    ← 最终住的机器
 </code></pre>
 
 <p>Hash 决定的是key在什么位置而不是key的value不要搞混,hash是吧图片变成数字,再用数字去决定放在哪个机器</p>
 
-<h2>Key-Value Store</h2>
+<h4>4.性质</h4>
 
-<h2>Bloom Filter</h2>
+<p>时间复杂度是logN本质是每次接近目标一半,如果中间节点挂了就指向finger table的下一个,如果目标节点挂了就在两个领居node上备份key或者file,新加入的node的successor的key 所有权会发生变化因为new node接管了predecessor部分传过来的key</p>
+
+<p><img src="/images/p2p/e0b68515376c.png" alt="Screenshot 2026-10-07 at 19.29.14" style="zoom:40%;" /></p>
+
+<p><img src="/images/p2p/b8edd2750c6b.png" alt="image-20261007192209028" style="zoom:50%;" /></p>
+
+<h4>1. Affinity Group</h4>
+
+<ul>
+<li>将 $N$ 个 nodes 分成 $k$ 个 <strong>Affinity Groups</strong>：</li>
+</ul>
+
+<p>$$
+k \approx \sqrt{N}
+$$</p>
+
+<p>​   Node 通过 <code>hash mod k</code> 决定所属 group。</p>
+
+<ul>
+<li>每个 node 保存：自己 group 中几乎所有 nodes。其他每个 group 的一个 <strong>contact node</strong>。因此用更多 neighbor 信息换取更快的 lookup。</li>
+</ul>
+
+<h4>2. File &amp; Metadata</h4>
+
+<ul>
+<li>文件本身可以存在任意少数 nodes 上，Kelips 主要负责 <strong>file lookup</strong>。</li>
+<li>Filename 通过 hash 映射到一个 Affinity Group。</li>
+<li>该 group 保存文件的 metadata：<code>&lt;filename, file location&gt;</code></li>
+<li><strong>文件位置与查询 metadata 分离</strong>，Affinity Group 不一定真正存储文件。</li>
+</ul>
+
+<h4>3. Lookup</h4>
+
+<p><code>filename → hash → Affinity Group → contact node → file location</code></p>
+
+<ul>
+<li>每个 node 都有其他 group 的 contact，因此通常可以直接找到目标 group。</li>
+<li><strong>Lookup cost：1 hop（失败时可能 few hops）</strong></li>
+<li><strong>Memory cost：</strong></li>
+</ul>
+
+<p>$$
+O(\sqrt{N})
+$$</p>
+
+<h4>4. Soft State</h4>
+
+<ul>
+<li>Membership 使用 <strong>Gossip</strong> 在 group 内和 group 间传播：</li>
+</ul>
+
+<p>$$
+O(\log N) \text{ dissemination time}
+$$</p>
+
+<ul>
+<li>Soft State 核心：<strong>不断刷新则保留，不刷新则自动过期</strong>。File metadata 需要 source node <strong>周期性 refresh</strong>。长时间没有 refresh → metadata <strong>timeout</strong>。</li>
+</ul>
+
+<h4>5. Chord vs. Kelips</h4>
+
+<ul>
+<li><strong>Chord</strong>：</li>
+</ul>
+
+<p>$$
+Memory = O(\log N), \quad Lookup = O(\log N)
+$$</p>
+
+<p>​   <strong>Kelips</strong>：<br />
+$$
+Memory = O(\sqrt{N}), \quad Lookup \approx 1\ hop
+$$</p>
+
+<p>​   核心 tradeoff：<br />
+$$
+Memory \leftrightarrow Lookup\ Cost \leftrightarrow Background\ Bandwidth
+$$</p>
+
+<ul>
+<li><strong>Chord</strong>：保存信息少，但 lookup 多跳。<br />
+<strong>Kelips</strong>：保存更多信息并用 Gossip 维护 freshness，但 lookup 更快。</li>
+</ul>
+
+<h4>6. P2P 总结</h4>
+
+<ul>
+<li>实际广泛使用：<strong>Napster / Gnutella / BitTorrent</strong></li>
+<li>具有可证明性质的 P2P：<strong>Chord / Kelips</strong></li>
+</ul>
+
+<h4>7. 核心要点</h4>
+
+<p>$$
+k \approx \sqrt{N}
+$$</p>
+
+<p>$$
+Memory = O(\sqrt{N})
+$$</p>
+
+<p>$$
+Lookup \approx 1\ hop
+$$</p>
+
+<p>Kelips 本质：<strong>用更多 Memory 和 Background Bandwidth 换更低的 Lookup Cost。</strong></p>
+
+<p>sql:有内键外键<br />
+no-sql<br />
+CAP Tradeoff<br />
+c: Consistency<br />
+a: Availability<br />
+p: Partition-tolerance</p>
+
+<p>Eventual Consistency最终一致性<br />
+可能读到旧数据,因为写入的数据还没异步传播到对应服务器上</p>
+
+<p><img src="/images/p2p/d9cd2bb05b0b.png" alt="Screenshot 2026-10-05 at 16.44.26" style="zoom:50%;" /></p>
+
+<p>Strong Consistency强一致性<br />
+有分布式锁,把并行变成串行,一定有任务顺序</p>
+
+<p><img src="/images/p2p/d9d6dd861cb5.png" alt="image-20261008102232778" style="zoom:50%;" /></p>
+
+<p>Causal Consistency因果一致性<br />
+看见就一定要改,不看见可以不改</p>
+
+<p><img src="/images/p2p/fb8b6eba764a.png" alt="Screenshot 2026-10-05 at 16.49.33" style="zoom:50%;" /></p>
+
+<p>HBase<br />
+<img src="/images/p2p/bebdf0443d47.png" alt="Screenshot 2026-10-05 at 17.20.42" style="zoom:50%;" /></p>
 
 <p>hash collision: 数据可能存在但是是别人的<br />
 Bloom Filter: 用多个hash操作一个字符串,并相乘如果全为1则maybe present,如果为0就definitely not present,可能假阳性但是一定不会假阴性</p>
+
+<p><img src="/images/p2p/df3c618dd8cb.png" alt="image-20261007162957167" style="zoom:50%;" /></p>
 
 <h3>Bloom Filter — FPR</h3>
 
@@ -173,31 +549,257 @@ Original $\approx$ Leo-all，因为 $\frac{4n}{1024}=\frac{n}{256}$。</p>
 <strong>ANY：</strong> 遇到 <code>True</code> → stop<br />
 都支持 <strong>short-circuit</strong>；实际性能还取决于 <strong>memory access / separate filters</strong>。</p>
 
-<h2>Quorum Intersection</h2>
+<h3>1. Cassandra 基础</h3>
 
-<p><strong>Quorum</strong>：完成一次操作所要求参与的一组节点，核心是保证不同操作的节点集合存在 <strong>intersection</strong>。</p>
+<p>Cassandra 是一个 <strong>Distributed Key-Value Store（分布式键值存储）</strong>。<br />
+基本数据形式：Key → Value<br />
+基本操作：</p>
 
-<h3>1. 两个 Quorum</h3>
+<blockquote>
+  <p><code>put(key, value)</code>：写入<br />
+  <code>get(key)</code>：读取</p>
+</blockquote>
 
-<p>对于 $N$ 个节点，每个 quorum 大小为 $M$：<br />
-$$
-|Q_1\cap Q_2|\ge 2M-N
-$$<br />
-若要求至少 $r$ 个共同节点：<br />
-$$
-2M-N\ge r
-$$<br />
-所以：<br />
-$$
-M_{\min}=\left\lceil\frac{N+r}{2}\right\rceil
-$$<br />
-当 $r=1$ 时：<br />
-$$
-M_{\min}=\lfloor N/2\rfloor+1
-$$<br />
-即 <strong>Majority Quorum（超过一半）</strong>。</p>
+<p>Cassandra 最初由 Facebook 设计，受到 Amazon Dynamo 的影响，后来成为 Apache 项目。<br />
+核心目标：分布式存储大量数据、支持大量随机读写、高可用、Scale-out：通过增加机器扩展系统，而不是升级单台机器</p>
 
-<h3>2. k 个 Quorum</h3>
+<hr />
+
+<h3>2. Key → Server Mapping</h3>
+
+<p>Cassandra 使用 <strong>Ring-based DHT</strong> 决定一个 Key 存在哪些服务器。<br />
+Key 经过 hash 后得到 Ring 上的位置，然后找到对应的服务器。<br />
+与 Chord 的区别：Cassandra 用更多 memory 保存 membership，换取更少的 routing hops。<br />
+Chord：</p>
+
+<blockquote>
+  <p>使用 Finger Table<br />
+  每个节点只知道部分节点<br />
+  查找通常需要多跳</p>
+</blockquote>
+
+<p>Cassandra：</p>
+
+<blockquote>
+  <p>不使用 Finger Table<br />
+  每个节点保存 <strong>Full Membership List</strong><br />
+  可以直接找到负责 Key 的节点</p>
+</blockquote>
+
+<hr />
+
+<h3>3. Replication</h3>
+
+<p><img src="/images/p2p/2936d2773735.png" alt="Screenshot 2026-10-05 at 15.36.46" style="zoom:40%;" /></p>
+
+<p>一个 Key 不只存储在一台机器，而是保存多个副本（Replica）。例如：<br />
+K13 → N16：Primary Replica<br />
+K13 → N32：Backup Replica<br />
+K13 → N45：Backup Replica<br />
+目的：如果一个节点发生故障，其他 Replica 仍然保存数据。</p>
+
+<h4>NetworkTopologyStrategy</h4>
+
+<p>Cassandra 可以根据物理网络拓扑放置 Replica。<br />
+Topology：Datacenter → Rack → Machine<br />
+Cassandra 使用 <strong>Snitch</strong> 判断 IP 属于哪个 Rack 和 Datacenter。<br />
+eplica 可以放在不同 Rack，避免一个 Rack 故障导致所有副本同时失效。</p>
+
+<hr />
+
+<h3>4. Coordinator</h3>
+
+<p>Client 不需要自己联系所有 Replica。<br />
+Client 首先把请求发送给一个 Cassandra Node，这个节点作为：<br />
+<strong>Coordinator</strong><br />
+流程：Client → Coordinator  → 找到负责 Key 的 Replicas  → R1 / R2 / R3<br />
+任何 Cassandra Server 都可以成为 Coordinator。<br />
+Coordinator 负责组织这一次 Read / Write 请求。</p>
+
+<hr />
+
+<h3>5. Write</h3>
+
+<p><img src="/images/p2p/7b1fb7806c47.png" alt="Screenshot 2026-10-07 at 19.47.45" style="zoom:50%;" /></p>
+
+<p>基本写入流程：<br />
+Client → Coordinator → Responsible Replicas<br />
+Coordinator：</p>
+
+<blockquote>
+  <p>1 为 Write 分配 Timestamp<br />
+  2 找到负责该 Key 的 Replicas<br />
+  3 将 Write 发送给这些 Replicas<br />
+  4 Replica 将数据写入本地存储</p>
+</blockquote>
+
+<p>Timestamp 用来判断多个版本中哪个更新。<br />
+例如：K13 → (V1, timestamp=10)</p>
+
+<hr />
+
+<h3>6. Hinted Handoff</h3>
+
+<p>如果某个 Replica 暂时 Down：</p>
+
+<blockquote>
+  <p>R1 ✓<br />
+  R2 ✓<br />
+  R3 ✗</p>
+</blockquote>
+
+<p>Coordinator 不需要停止整个 Write。它可以：</p>
+
+<blockquote>
+  <p>1 正常写入其他 Replica<br />
+  2 暂时保存 R3 缺失的 Write<br />
+  3 等 R3 恢复<br />
+  4 将缺失的数据发送给 R3</p>
+</blockquote>
+
+<p>这叫：<strong>Hinted Handoff</strong><br />
+作用：提高 Availability，使 Replica 暂时故障时系统仍然可以继续写入。</p>
+
+<hr />
+
+<h3>7. Read</h3>
+
+<p><img src="/images/p2p/3d56389b021f.png" alt="Screenshot 2026-10-07 at 19.48.57" style="zoom:50%;" /></p>
+
+<p>Read 与 Write 类似。Coordinator 从多个 Replica 获取数据。例如：<br />
+R1: K13 → V1, timestamp=10<br />
+R2: K13 → V0, timestamp=9<br />
+R3: K13 → V1, timestamp=10<br />
+Coordinator 根据 Timestamp 选择最新版本：V1, timestamp=10<br />
+因此：<strong>Latest Timestamp → Latest Value</strong></p>
+
+<hr />
+
+<h3>8. Read Repair</h3>
+
+<p><img src="/images/p2p/5029e1f31c71.png" alt="Screenshot 2026-10-07 at 19.49.21" style="zoom:50%;" /></p>
+
+<p>读取时如果发现 Replica 数据不一致：<br />
+R1 = V1,10<br />
+R2 = V0,9<br />
+R3 = V1,10<br />
+Coordinator 可以发现：R2 保存的是旧数据。<br />
+然后在后台将：R2: V0,9 → R2: V1,10<br />
+这叫：<strong>Read Repair</strong><br />
+作用：让不同 Replica 最终逐渐恢复一致。</p>
+
+<hr />
+
+<h3>9. Eventual Consistency</h3>
+
+<p>Cassandra 允许不同 Replica 在短时间内保存不同版本。例如：<br />
+R1 = V2<br />
+R2 = V2<br />
+R3 = V1<br />
+之后通过：Hinted Handoff、Read Repair<br />
+逐渐变成：<br />
+R1 = V2<br />
+R2 = V2<br />
+R3 = V2<br />
+这叫：<strong>Eventual Consistency（最终一致性）</strong><br />
+含义：如果停止对一个 Key 继续写入，它的所有 Replica 最终会收敛到相同值。但在收敛之前，Read 可能暂时读到旧数据（Stale Value）。<br />
+Cassandra 更偏向：<strong>Availability + Partition Tolerance</strong>, 而不是始终要求 Strong Consistency。</p>
+
+<hr />
+
+<h3>10. Membership</h3>
+
+<p>Cassandra 每个 Server 保存：<strong>Full Membership List</strong> , 也就是知道 Cluster 中其他服务器的信息。<br />
+Cassandra 使用：<strong>Gossip Protocol</strong><br />
+传播 Membership 信息，例如：Node Join、Node Leave、Node Failure</p>
+
+<hr />
+
+<h3>11. Failure Detection</h3>
+
+<p>Cassandra 使用 Heartbeat 风格的 Failure Detector：<br />
+<strong>Φ Accrual Failure Detector</strong><br />
+根据网络情况判断一个 Node 是否可能发生故障。<br />
+Cassandra 使用 <strong>Fail-Recover Model</strong>：<br />
+Node Failure → 标记 DOWN → 不直接永久删除 → Node 恢复后重新标记 UP<br />
+因为 Cassandra 假设机器可能只是暂时故障，之后还会恢复。</p>
+
+<hr />
+
+<h3>12. Local Storage</h3>
+
+<p>当 Replica 收到 Write：Write → Commit Log → Memtable</p>
+
+<h4>Commit Log</h4>
+
+<p>Write 首先记录到磁盘上的 Commit Log。作用：<br />
+<strong>Failure Recovery</strong><br />
+如果机器 Crash，可以根据 Commit Log 恢复数据。</p>
+
+<h4>Memtable</h4>
+
+<p>然后数据写入：<strong>Memtable</strong><br />
+Memtable 是：<strong>In-Memory Key-Value Data Structure</strong> 也就是存储在 RAM 中。<br />
+因此 Cassandra 不需要每次 Write 都先从磁盘查找旧数据。<br />
+Write Path：Write → Commit Log → Memtable<br />
+Cassandra 的本地存储使用：**LSM Tree（Log-Structured Merge Tree）**核心目标是让 Write 尽量避免昂贵的 Disk Seek。</p>
+
+<hr />
+
+<h3>Cassandra 总流程</h3>
+
+<p>Client → Coordinator → Ring 找到负责 Key 的节点 → 多个 Replicas → Read / Write<br />
+核心机制：</p>
+
+<blockquote>
+  <p><strong>Ring-based DHT</strong>：决定 Key 存在哪里<br />
+  <strong>Full Membership List</strong>：直接知道其他节点<br />
+  <strong>Replication</strong>：保存多个副本<br />
+  <strong>Snitch</strong>：识别 Rack / Datacenter<br />
+  <strong>Coordinator</strong>：组织 Read / Write<br />
+  <strong>Timestamp</strong>：判断最新数据<br />
+  <strong>Hinted Handoff</strong>：处理暂时 Down 的 Replica<br />
+  <strong>Read Repair</strong>：修复旧 Replica<br />
+  <strong>Eventual Consistency</strong>：Replica 最终收敛<br />
+  <strong>Gossip</strong>：传播 Membership<br />
+  <strong>Failure Detector</strong>：判断节点 Down / Up<br />
+  <strong>Commit Log</strong>：故障恢复<br />
+  <strong>Memtable</strong>：内存中的 Key-Value 数据<br />
+  <strong>LSM Tree</strong>：优化本地写入</p>
+</blockquote>
+
+<h3>1. Cassandra Read / Write</h3>
+
+<ul>
+<li><strong>CAP</strong>: AP系统, 暂时牺牲强一致性, Eventual Consistency,  BASE </li>
+<li><strong>Write</strong>：Client → Coordinator → $N$ replicas；等 $X$ 个响应后 ACK。</li>
+<li><strong>Hinted Handoff</strong>：Replica down → Coordinator 暂存 write → 恢复后补写。</li>
+<li><strong>Read</strong>：读取 $X$ replicas → 返回 <strong>latest timestamp</strong> 的 value。</li>
+<li><strong>Read Repair</strong>：发现旧 replica → 用最新 value 修复 → 最终一致。</li>
+<li><strong>Membership</strong>：每个节点保存 <strong>full membership list</strong>；用 <strong>Gossip</strong> 传播 join / leave / fail。</li>
+<li><strong>Failure Detection</strong>：Heartbeat-style $\Phi$ detector，根据网络动态判断 failure；节点只标记 <strong>UP/DOWN</strong>，不直接删除。</li>
+<li><strong>Quorum</strong>：决定 Read / Write 需要等待多少 replicas。</li>
+</ul>
+
+<h3>2. CAP &amp; Eventual Consistency</h3>
+
+<ul>
+<li><strong>CAP</strong>：C = latest data，A = requests keep responding，P = network partition 下继续运行；发生 partition 时通常在 <strong>C / A</strong> 间取舍。</li>
+<li>Cassandra 偏 <strong>AP</strong>，采用 <strong>Eventual Consistency</strong>：replicas 可暂时不一致，停止写后最终收敛；期间可能读到 stale value。</li>
+<li>Cassandra 更偏 <strong>BASE</strong>；传统 RDBMS 更强调 <strong>ACID</strong>。</li>
+</ul>
+
+<h3>3. Quorum Intersection 原理</h3>
+
+<p><strong>Quorum</strong>：完成一次操作所要求参与的一组节点，核心是保证不同操作的节点集合存在 <strong>intersection</strong>。<br />
+<strong>$N$</strong>：系统中<strong>总共有多少个 process / node</strong>。<br />
+<strong>$M$</strong>：<strong>每一个 quorum 里面有多少个节点</strong>。<br />
+<strong>$r$</strong>：题目要求所有 quorum <strong>至少共同拥有多少个节点</strong>。<br />
+<strong>$k$</strong>：一共有<strong>多少个 quorum</strong>。</p>
+
+<h4>k 个 Quorum</h4>
+
+<p>共同的人=总人数 - 可能被排除的人</p>
 
 <p>每个 quorum 排除 $N-M$ 个节点，$k$ 个 quorum 最坏排除：<br />
 $$
@@ -226,38 +828,72 @@ $$
 $$<br />
 <strong>两两相交不能保证所有集合存在共同节点。</strong></p>
 
-<h2>Cassandra</h2>
+<h3>4. Cassandra Quorum</h3>
+
+<ul>
+<li><strong>N</strong> = replica 总数，<strong>R</strong> = read 等待数，<strong>W</strong> = write 等待数。</li>
+<li>Read：等 R 个响应 → 返回 <strong>latest timestamp</strong>；Write：等 W 个完成 → <strong>ACK</strong>。</li>
+<li>一致性条件：<br />
+$$
+R+W&gt;N
+$$<br />
+$$
+W&gt;N/2
+$$</li>
+<li><strong>Quorum = majority (&gt;50%)</strong>，保证集合相交。</li>
+<li>大 W / 小 R → read-heavy；小 W / 大 R → write-heavy。</li>
+<li>$R=W=1$ → 高 Availability、可能 stale；Quorum / 大 W → Consistency 更强但 Availability 更低。</li>
+<li>若 Read / Write 都用 <strong>QUORUM</strong>，则 $R+W&gt;N$，read quorum 必与之前成功的 write quorum 相交，因此 <strong>任何 client</strong> 的后续 read 都能看到该 write 或更新的 value。</li>
+</ul>
+
+<h3>5. Cassandra Consistency Levels</h3>
+
+<ul>
+<li><strong>ANY</strong>：任意 server，最快。</li>
+<li><strong>ONE</strong>：1 个 replica。</li>
+<li><strong>QUORUM</strong>：多数 replicas。</li>
+<li><strong>ALL</strong>：全部 replicas，最慢最严格。</li>
+<li>多 DC：<strong>QUORUM</strong> = 全部 DC 合起来多数；<strong>LOCAL_QUORUM</strong> = 本地 DC 多数；<strong>EACH_QUORUM</strong> = 每个 DC 都达到多数.</li>
+</ul>
+
+<h3>6. Replica Local Storage</h3>
+
+<ul>
+<li>Write Path</li>
+</ul>
 
 <p>核心思想：<strong>顺序写，不原地修改磁盘，之后统一 Compaction。</strong><br />
 $$
 \text{Write Fast Now, Compact Later}
 $$</p>
 
-<h3>1. Write Path</h3>
-
 <p>$$
 \text{Write}\rightarrow\text{Commit Log}+\text{Memtable}\rightarrow\text{Flush}\rightarrow\text{SSTable}
 $$</p>
 
-<ul>
-<li><strong>Commit Log (Disk)</strong>：顺序追加，保证 durability。</li>
-<li><strong>Memtable (RAM)</strong>：快速写入，满后 flush。</li>
-<li><strong>SSTable (Disk)</strong>：immutable，不原地修改。<br />
-Update 直接写新版本，通过 timestamp/version 选择最新值：</li>
-</ul>
+<p>​   <strong>Commit Log (Disk)</strong>：顺序追加，保证 durability。</p>
+
+<p>​   <strong>Memtable (RAM)</strong>：快速写入，满后 flush。</p>
+
+<p>​   <strong>SSTable (Disk)</strong>：immutable，不原地修改。<br />
+Update 直接写新版本，通过 timestamp/version 选择最新值：</p>
 
 <pre><code>Old: B → 20
 New: B → 99
 </code></pre>
 
-<h3>2. Compaction</h3>
+<ul>
+<li><strong>Compaction</strong></li>
+</ul>
 
 <p>合并多个 SSTable，删除过期版本：</p>
 
 <pre><code>B→20, B→30, B→50  →  B→50
 </code></pre>
 
-<h3>3. Tombstone</h3>
+<ul>
+<li><strong>Tombstone</strong></li>
+</ul>
 
 <p>DELETE 不物理删除，而是写：</p>
 
@@ -266,15 +902,18 @@ New: B → 99
 
 <p>原因：<strong>SSTable immutable + 防止旧 replica 让删除数据复活</strong>。Tombstone 是带 timestamp 的 delete update，最终由 Compaction 清理。</p>
 
-<h3>4. Bloom Filter</h3>
+<ul>
+<li><strong>Bloom Filter</strong></li>
+</ul>
 
-<pre><code>definitely not present → 不读 SSTable
-maybe present → 读 SSTable
-</code></pre>
+<p>definitely not present → 不读 SSTable<br />
+maybe present → 读 SSTable<br />
+对于用key比对,bloom filter会更省store,但是会出现false positive,不能determine exactly<br />
+作用：<strong>减少无效 SSTable disk I/O，提高 read performance。</strong></p>
 
-<p>作用：<strong>减少无效 SSTable disk I/O，提高 read performance。</strong></p>
-
-<h3>4. Full Membership vs Finger Table</h3>
+<ul>
+<li><strong>Full Membership vs Finger Table</strong></li>
+</ul>
 
 <p>Chord finger table 需要：<br />
 $$
@@ -286,7 +925,9 @@ $$
 $$<br />
 即：<strong>用更多 membership metadata 换更低 routing latency。</strong></p>
 
-<h3>5. 一条线记住</h3>
+<ul>
+<li><strong>一条线记住</strong></li>
+</ul>
 
 <pre><code>Write → Commit Log + Memtable → Flush → SSTable
                                   ↓
@@ -295,9 +936,15 @@ $$<br />
 Delete → Tombstone → Compaction
 </code></pre>
 
-<h2>Lamport Clock</h2>
+<h3>7. ring&amp;routing</h3>
 
-<p><img src="/images/p2p/lamport-clock.png" alt="Screenshot 2026-10-04 at 15.28.29" style="zoom:30%;" /></p>
+<p>主副本: 在环上按顺时针方向寻找，第一个大于等于其哈希值的节点<br />
+备份副本：在分布式系统（如复制因子为 $r$）中，数据会被同时复制到主副本及其后面的 $r-1$ 个顺时针后继节点上。<br />
+Cassandra 基于环 DHT，没有使用Finger Table，每个节点都保存着Full membership list,只要1跳就行</p>
+
+<p><img src="/images/p2p/2936d2773735.png" alt="Screenshot 2026-10-05 at 15.36.46" style="zoom:40%;" /></p>
+
+<p><img src="/images/p2p/9b00377381e3.png" alt="Screenshot 2026-10-04 at 15.28.29" style="zoom:30%;" /></p>
 
 <h3>1. Happened-Before</h3>
 
@@ -306,9 +953,9 @@ Delete → Tombstone → Compaction
 <h4>三种情况</h4>
 
 <ul>
-<li>同一 Process：前面的事件 $\rightarrow$ 后面的事件</li>
-<li>Message：$send\rightarrow receive$</li>
-<li>传递性：$A\rightarrow B,\ B\rightarrow C\Rightarrow A\rightarrow C$</li>
+<li>同一 Process：前面的事件 $\rightarrow$ 后面的事件<br />
+Message：$send\rightarrow receive$<br />
+传递性：$A\rightarrow B,\ B\rightarrow C\Rightarrow A\rightarrow C$</li>
 </ul>
 
 <h4>Concurrent</h4>
@@ -360,9 +1007,7 @@ $$
 A\rightarrow B\Rightarrow L(A)&lt;L(B)
 $$</p>
 
-<p><img src="/images/p2p/vector-clock.png" alt="Screenshot 2026-10-04 at 15.27.04" style="zoom:40%;" /></p>
-
-<h2>Vector Clock</h2>
+<p><img src="/images/p2p/d0b094213be7.png" alt="Screenshot 2026-10-04 at 15.27.04" style="zoom:40%;" /></p>
 
 <h3>1. 核心</h3>
 
@@ -395,7 +1040,7 @@ $$<br />
 $$
 V_i[i]++
 $$<br />
-即：<strong>merge knowledge → 记录 receive event</strong>。</p>
+<strong>merge knowledge → 记录 receive event</strong>。</p>
 
 <h3>3.判断 Causality</h3>
 

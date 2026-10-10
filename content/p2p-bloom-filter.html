@@ -1,0 +1,48 @@
+<p>hash collision: 数据可能存在但是是别人的<br />
+Bloom Filter: 用多个hash操作一个字符串,并相乘如果全为1则maybe present,如果为0就definitely not present,可能假阳性但是一定不会假阴性</p>
+
+<p><img src="/images/p2p/df3c618dd8cb.png" alt="image-20261007162957167" style="zoom:50%;" /></p>
+
+<h3>Bloom Filter — FPR</h3>
+
+<p>设：$m=\text{bits},\ k=\text{hash 数},\ n=\text{插入元素数}$  </p>
+
+<h3>1. 核心公式</h3>
+
+<p>一个 bit 为 1 的概率：<br />
+$$
+p=1-\left(1-\frac{1}{m}\right)^{kn}\approx1-e^{-kn/m}
+$$<br />
+False Positive Rate：<br />
+$$
+FPR=p^k
+$$<br />
+直觉：$n\uparrow \Rightarrow \text{bit 更满} \Rightarrow FPR\uparrow$</p>
+
+<h3>2. 多个独立 Filter</h3>
+
+<p>若单个 filter 的 False Positive 概率为 $p$：<br />
+<strong>ALL：</strong> $P(FP)=p^k$<br />
+<strong>ANY：</strong> $P(FP)=1-(1-p)^k$<br />
+记忆：<strong>ALL = 全部发生；ANY = 1 - 全部不发生</strong></p>
+
+<h3>3. Q4</h3>
+
+<p><strong>Original Bloom：</strong> $m=1024,\ k=4$<br />
+$$
+FPR=\left[1-\left(1-\frac{1}{1024}\right)^{4n}\right]^4
+$$<br />
+<strong>Leo：</strong> 4 个独立 filter，每个 $m=256,\ k=1$<br />
+单个 filter：<br />
+$$
+p=1-\left(1-\frac{1}{256}\right)^n
+$$<br />
+Leo-all：$FPR=p^4$<br />
+Leo-any：$FPR=1-(1-p)^4$<br />
+Original $\approx$ Leo-all，因为 $\frac{4n}{1024}=\frac{n}{256}$。</p>
+
+<h3>4. Performance</h3>
+
+<p><strong>ALL：</strong> 遇到 <code>False</code> → stop<br />
+<strong>ANY：</strong> 遇到 <code>True</code> → stop<br />
+都支持 <strong>short-circuit</strong>；实际性能还取决于 <strong>memory access / separate filters</strong>。</p>

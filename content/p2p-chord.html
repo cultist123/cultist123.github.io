@@ -1,0 +1,97 @@
+<h3>1. Chord</h3>
+
+<p>Chord Ring 的ID space: $2^m$(并不一定1 ID to 1 Machine 可以没有对应的node)<br />
+Node: 指的是在finger table的点</p>
+
+<h4>1. successor 与  consistent hashing ring 与Finger Table</h4>
+
+<p>本质上是一种映射,当要找的node找不到时,就像指针一样,顺时针找下一个node, 最基本是一种$O(N)$的链表,然后引出Finger Table<br />
+Finger Table: 从认识的 Node 里面，找一个最接近目标、但还没有超过目标的 Node，然后跳过去。<br />
+$$
+start_i=(n+2^{i-1})\bmod 2^m
+$$</p>
+
+<p>$$
+finger[i]=successor(start_i)
+$$</p>
+
+<p>时间$O(\log N)$ 按照$2^0,\ 2^1,\ 2^2,\ 2^3,\ldots$建立finger table, 所以每次跳跃每次缩小一半的距离</p>
+
+<p><img src="/images/p2p/chord-ring.png" alt="Distributed caching strategies &amp; sharding techniques for high performance" style="zoom:50%;" /></p>
+
+<p><img src="/images/p2p/6010b0cc994b.png" alt="Screenshot 2026-10-04 at 22.33.06" /></p>
+
+<pre><code>step1
+                    0  ← Node 0
+                 ↗         ↘
+              7               1
+            ↗                   ↘
+           6                     2  ← Node 2
+            ↑                   ↓
+              5               3
+              ↑               ↓
+            Node 5      ←     4
+
+step2
+0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 0 → ...
+↑       ↑           ↑
+Node    Node        Node
+0       2           5
+
+step3
+key = "cat.jpg"
+hash("cat.jpg") = 4
+
+step4
+0 → 1 → 2 → 3 → [4] → 5 → 6 → 7 → 0
+        ↑              ↑
+      Node 2          Node 5
+
+step5
+位置 4 → 没有 Node！→ key 4 → Node 5
+successor(4) = 5
+</code></pre>
+
+<h4>2. Chord Routing 的原则与跳法</h4>
+
+<p>closest preceding finger: 从 finger table 里选择一个最大的、但还没有超过 key 的 node。如果所有的node in finger table都超过k,说明要找自己的successor了.<br />
+算法: 在 Node \(n\)，如果：$ k\in(n, successor(n)] $<br />
+    那么 $successor(k)=successor(n) $直接结束。<br />
+    否则：$\text{forward to closest preceding finger}$<br />
+Node Failure : 凡是 finger table 中指向 failed node 的节点，都需要更新</p>
+
+<pre><code>我要找 key k
+
+        ↓
+
+k 是否在 (current, successor]？
+
+     /             \
+   YES              NO
+    |                |
+    ↓                ↓
+successor就是答案    finger table里
+                     找最接近k但
+                     没超过k的node
+                          |
+                          ↓
+                       跳过去
+                          |
+                          ↺
+</code></pre>
+
+<h4>3. Key hash</h4>
+
+<pre><code>key       = "cat.jpg"     ← 我是谁
+value     = 猫图片         ← 我的东西
+hash(key) = 4             ← 我的地址编号
+Node 5                    ← 最终住的机器
+</code></pre>
+
+<p>Hash 决定的是key在什么位置而不是key的value不要搞混,hash是吧图片变成数字,再用数字去决定放在哪个机器</p>
+
+<h4>4.性质</h4>
+
+<p>时间复杂度是logN本质是每次接近目标一半,如果中间节点挂了就指向finger table的下一个,如果目标节点挂了就在两个领居node上备份key或者file,新加入的node的successor的key 所有权会发生变化因为new node接管了predecessor部分传过来的key</p>
+
+<p><img src="/images/p2p/e0b68515376c.png" alt="Screenshot 2026-10-07 at 19.29.14" style="zoom:40%;" /></p>

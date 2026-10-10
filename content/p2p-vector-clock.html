@@ -1,0 +1,102 @@
+<p><img src="/images/p2p/d0b094213be7.png" alt="Screenshot 2026-10-04 at 15.27.04" style="zoom:40%;" /></p>
+
+<h3>1. 核心</h3>
+
+<p>Lamport Clock：<br />
+$$
+A\rightarrow B \Rightarrow L(A)&lt;L(B)
+$$<br />
+但不能反推，所以无法判断 concurrency。Vector Clock 用一个向量记录各 process 的 causal history：<br />
+$$
+V=[v_1,v_2,\dots,v_N]
+$$</p>
+
+<h3>2.更新规则</h3>
+
+<p>初始：<br />
+$$
+[0,0,\dots,0]
+$$<br />
+Local / Send：只增加自己的维度：<br />
+$$
+V_i[i]++
+$$<br />
+Send 时携带整个 vector。</p>
+
+<p>Receive：先逐元素取 max：<br />
+$$
+V_i[j]=\max(V_i[j],V_m[j])
+$$<br />
+再增加自己的维度：<br />
+$$
+V_i[i]++
+$$<br />
+<strong>merge knowledge → 记录 receive event</strong>。</p>
+
+<h3>3.判断 Causality</h3>
+
+<p>若：<br />
+$$
+V(A)[i]\le V(B)[i],\quad \forall i
+$$<br />
+且至少一维严格小于，则：<br />
+$$
+A\rightarrow B
+$$<br />
+例如：<br />
+$$
+[1,2,3]&lt;[2,2,5]
+$$<br />
+如果两个 vector 互有大小：<br />
+$$
+A\nless B,\quad B\nless A
+$$<br />
+则：<br />
+$$
+A\parallel B
+$$<br />
+表示 concurrent。例如：<br />
+$$
+[3,1,0]\parallel[2,4,0]
+$$</p>
+
+<h3>4. Lamport vs Vector</h3>
+
+<table>
+<thead>
+<tr>
+  <th></th>
+  <th>Lamport</th>
+  <th>Vector</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>Timestamp</td>
+  <td>Integer</td>
+  <td>Vector</td>
+</tr>
+<tr>
+  <td>Receive</td>
+  <td>$\max+1$</td>
+  <td>element-wise max，再自己 +1</td>
+</tr>
+<tr>
+  <td>判断 causality</td>
+  <td>不能反推</td>
+  <td>可以</td>
+</tr>
+<tr>
+  <td>判断 concurrent</td>
+  <td>不可以</td>
+  <td>可以</td>
+</tr>
+<tr>
+  <td>Space</td>
+  <td>$O(1)$</td>
+  <td>$O(N)$</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Lamport 只能给顺序；Vector 能判断因果和并发。</strong></p>

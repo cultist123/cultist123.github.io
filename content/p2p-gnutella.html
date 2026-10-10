@@ -1,0 +1,233 @@
+<h3>p2p</h3>
+
+<p>peer to peer 节点组织方式<br />
+每个节点可以请求、提供、转发数据</p>
+
+<h3>1. 核心思想</h3>
+
+<p>Napster：</p>
+
+<blockquote>
+  <p>文件存在 Peer<br />
+  文件索引存在中央 Server<br />
+  问题：Server bottleneck + single point of failure</p>
+</blockquote>
+
+<p>Gnutella：</p>
+
+<blockquote>
+  <p><strong>No central server</strong><br />
+  每个 Peer 同时是 Client + Server → <strong>Servent</strong><br />
+  Peers 组成 <strong>Overlay Graph</strong><br />
+  每个 Peer 保存自己的文件和 neighbor 信息</p>
+</blockquote>
+
+<hr />
+
+<h3>2. 数据结构</h3>
+
+<p>完全二叉树$ N=2^m-1 $ N为节点数, $m-1$ 为层数量 $[0:m-1]$<br />
+$TTL\ge \max_v distance(s,v)$ $  TTL_{\min} = \max_{u,v} distance(u,v)  $<br />
+distributed system trade-off: 更多的连接=更短的routing path,更多 connection state<br />
+child可以沿着parent向上routing</p>
+
+<hr />
+
+<h3>3. 假设 $A \longleftrightarrow B$ 建立connection什么是connection state</h3>
+
+<p>ID信息: IP Address/port<br />
+连接状态: 正在连接/关闭了, 超时计数器<br />
+协议状态: 数据发到百分之多少了, 缓冲区是否有消息等待发送</p>
+
+<hr />
+
+<h3>4. 五种 Message</h3>
+
+<table>
+<thead>
+<tr>
+  <th>Message</th>
+  <th>作用</th>
+  <th>路由方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>Query</td>
+  <td>搜索文件</td>
+  <td>Flooding</td>
+</tr>
+<tr>
+  <td>QueryHit</td>
+  <td>返回搜索结果</td>
+  <td>Reverse Path</td>
+</tr>
+<tr>
+  <td>Ping</td>
+  <td>寻找/维护 Peers</td>
+  <td>Flooding</td>
+</tr>
+<tr>
+  <td>Pong</td>
+  <td>回复 Ping</td>
+  <td>Reverse Path</td>
+</tr>
+<tr>
+  <td>Push</td>
+  <td>处理 Firewall</td>
+  <td>Reverse Path 到 responder</td>
+</tr>
+</tbody>
+</table>
+
+<blockquote>
+  <p>Query ↔ QueryHit：找文件<br />
+  Ping ↔ Pong：维护 Neighbor<br />
+  Push：解决 Firewall</p>
+</blockquote>
+
+<hr />
+
+<h3>5. Query / Flooding</h3>
+
+<h4>Gnutella &amp;flooding&amp;TTL&amp;hop</h4>
+
+<p>不知道就问peer,peer不知道就问peer的peer,如果每个patent都有两个child,这是一个二叉树<br />
+一个一个领居接着问是泛洪<br />
+TTL = time to live 如果system有环就会无限泛洪,所以需要引入hop限制步数<br />
+hop 可以理解为一步<br />
+Gnutella 本质是个图论问题</p>
+
+<p><img src="/images/p2p/d3df6a1e967f.png" alt="Screenshot 2026-10-07 at 15.22.36" />搜索文件时：A → neighbors → neighbors → ...<br />
+规则：</p>
+
+<ol>
+<li>Query 发给所有 neighbors，除了发送给自己的那个 Peer</li>
+<li>每个 Query 有唯一 <strong>DescriptorID</strong></li>
+<li>相同 DescriptorID 的 Query 第二次收到 → <strong>Drop</strong></li>
+<li>防止重复 Flooding</li>
+</ol>
+
+<hr />
+
+<h3>6. TTL</h3>
+
+<p>TTL = Query 最多还能传播多少个 hop<br />
+每经过一个 Peer：TTL = TTL - 1<br />
+TTL = 0：不再继续 Forward<br />
+所以：<strong>TTL ↑ → 搜索范围 ↑ → 找到文件概率 ↑ → Message Overhead ↑</strong></p>
+
+<hr />
+
+<h3>7. 策略</h3>
+
+<p>原路返回数据,相同ID后收到的丢弃,以牙还牙给提供好下载速度的节点提供上传速度</p>
+
+<h4>QueryHit</h4>
+
+<p><img src="/images/p2p/8a485050c283.png" alt="image-20261007152302132" /></p>
+
+<p>如果某 Peer 找到文件：<br />
+Query：A → B → C → D<br />
+QueryHit：A ← B ← C ← D<br />
+即：<strong>QueryHit 沿 Query 的 Reverse Path 返回</strong><br />
+QueryHit 包含：IP, Port, File information, Servent ID</p>
+
+<h4>文件下载</h4>
+
+<p>QueryHit 回到 Requestor 后：Requestor → Responder<br />
+直接建立 <strong>TCP / HTTP</strong> 连接下载。</p>
+
+<blockquote>
+  <p><strong>文件不会沿 Query/QueryHit 的 Overlay Path 传输。</strong><br />
+  搜索走 Gnutella Overlay；<br />
+  真正文件传输是 Peer-to-Peer Direct Connection。</p>
+</blockquote>
+
+<h4>Firewall + Push</h4>
+
+<p>正常：Requestor → Responder<br />
+如果 Responder 在 Firewall 后：Requestor 无法主动连接 Responder。</p>
+
+<p>解决：</p>
+
+<ol>
+<li>Requestor 发送 <strong>Push</strong></li>
+<li>Push 到达 Responder</li>
+<li><p>Responder 主动建立 TCP：Responder → Requestor</p></li>
+<li><p>Requestor 再发送 HTTP GET</p></li>
+<li>开始文件传输</li>
+</ol>
+
+<p>记：<strong>谁在墙里，谁主动往外建立tcp连接。</strong></p>
+
+<hr />
+
+<h3>8. Ping / Pong</h3>
+
+<p>目的：<strong>更新 Neighbor List</strong><br />
+因为 Peer 会不断：Join, Leave, Fail</p>
+
+<p>流程：<br />
+Ping → Flooding<br />
+Pong → Reverse Path</p>
+
+<blockquote>
+  <p>Pong 包含：IP, Port, Number of files shared, KB shared</p>
+</blockquote>
+
+<hr />
+
+<h3>9. Gnutella 防止流量爆炸</h3>
+
+<p><strong>Duplicate</strong><br />
+相同：DescriptorID + Message Type   再次收到 → <strong>Drop</strong> (QueryHit 和 Pong没有这个机制,只有Query和Ping有)<br />
+<strong>TTL</strong><br />
+限制 Flooding 最大距离。</p>
+
+<hr />
+
+<h3>10. Gnutella Problems</h3>
+
+<p><strong>Flooding</strong>: 搜索产生大量 Message。<br />
+<strong>Ping/Pong</strong>:曾占大量网络 Traffic。<br />
+<strong>Repeated Query</strong>: 相同关键词反复搜索。<br />
+解决：Cache Query / QueryHit<br />
+<strong>Freeloader</strong>: 只下载，不上传文件。</p>
+
+<hr />
+
+<h3>11. Summary</h3>
+
+<p>Gnutella：<strong>No Server + Overlay Graph + Flooding</strong><br />
+搜索：</p>
+
+<blockquote>
+  <p>Query → Flooding<br />
+  QueryHit → Reverse Path</p>
+</blockquote>
+
+<p>维护 Peer：</p>
+
+<blockquote>
+  <p>Ping → Flooding<br />
+  Pong → Reverse Path</p>
+</blockquote>
+
+<p>防火墙：</p>
+
+<blockquote>
+  <p>Push → 让 Firewall 内的 Responder 主动连接 Requestor</p>
+</blockquote>
+
+<p>控制 Flooding：</p>
+
+<blockquote>
+  <p>TTL + DescriptorID 去重</p>
+</blockquote>
+
+<p>最大问题：</p>
+
+<blockquote>
+  <p><strong>Flooding → O(N) Message Overhead</strong></p>
+</blockquote>

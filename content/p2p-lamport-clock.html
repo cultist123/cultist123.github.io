@@ -1,0 +1,62 @@
+<p><img src="/images/p2p/9b00377381e3.png" alt="Screenshot 2026-10-04 at 15.28.29" style="zoom:30%;" /></p>
+
+<h3>1. Happened-Before</h3>
+
+<p>$A\rightarrow B$：A 在因果关系上发生于 B 之前。</p>
+
+<h4>三种情况</h4>
+
+<ul>
+<li>同一 Process：前面的事件 $\rightarrow$ 后面的事件<br />
+Message：$send\rightarrow receive$<br />
+传递性：$A\rightarrow B,\ B\rightarrow C\Rightarrow A\rightarrow C$</li>
+</ul>
+
+<h4>Concurrent</h4>
+
+<p>如果：<br />
+$$
+A\nrightarrow B,\quad B\nrightarrow A
+$$<br />
+则 A、B concurrent（没有可证明的因果关系）。</p>
+
+<h3>2. Lamport Clock 规则</h3>
+
+<h4>Local / Send</h4>
+
+<p>$$
+L=L+1
+$$<br />
+Send 时把当前 $L$ 放进 message。</p>
+
+<h4>Receive</h4>
+
+<p>收到 message timestamp $T_m$：<br />
+$$
+L=\max(L,T_m)+1
+$$</p>
+
+<h3>3. 核心性质</h3>
+
+<p>$$
+A\rightarrow B\Rightarrow L(A)&lt;L(B)
+$$<br />
+但反过来不成立：<br />
+$$
+L(A)&lt;L(B)\not\Rightarrow A\rightarrow B
+$$<br />
+<strong>所以 Lamport Clock 不能判断两个事件是否 concurrent。</strong></p>
+
+<h3>4. 初始值</h3>
+
+<p>各 Process 可以从不同值开始，只要仍遵守：<br />
+$$
+Local/Send:+1
+$$<br />
+$$
+Receive:\max(L,T_m)+1
+$$<br />
+就仍保证：<br />
+$$
+A\rightarrow B\Rightarrow L(A)&lt;L(B)
+$$</p>

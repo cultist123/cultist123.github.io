@@ -1,0 +1,24 @@
+<p>sql:有内键外键<br />
+no-sql<br />
+CAP Tradeoff<br />
+c: Consistency<br />
+a: Availability<br />
+p: Partition-tolerance</p>
+
+<p>Eventual Consistency最终一致性<br />
+可能读到旧数据,因为写入的数据还没异步传播到对应服务器上</p>
+
+<p><img src="/images/p2p/d9cd2bb05b0b.png" alt="Screenshot 2026-10-05 at 16.44.26" style="zoom:50%;" /></p>
+
+<p>Strong Consistency强一致性<br />
+有分布式锁,把并行变成串行,一定有任务顺序</p>
+
+<p><img src="/images/p2p/d9d6dd861cb5.png" alt="image-20261008102232778" style="zoom:50%;" /></p>
+
+<p>Causal Consistency因果一致性<br />
+看见就一定要改,不看见可以不改</p>
+
+<p><img src="/images/p2p/fb8b6eba764a.png" alt="Screenshot 2026-10-05 at 16.49.33" style="zoom:50%;" /></p>
+
+<p>HBase<br />
+<img src="/images/p2p/bebdf0443d47.png" alt="Screenshot 2026-10-05 at 17.20.42" style="zoom:50%;" /></p>

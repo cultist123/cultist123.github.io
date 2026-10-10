@@ -1,0 +1,102 @@
+<p><img src="/images/p2p/b8edd2750c6b.png" alt="image-20261007192209028" style="zoom:50%;" /></p>
+
+<h4>1. Affinity Group</h4>
+
+<ul>
+<li>将 $N$ 个 nodes 分成 $k$ 个 <strong>Affinity Groups</strong>：</li>
+</ul>
+
+<p>$$
+k \approx \sqrt{N}
+$$</p>
+
+<p>​   Node 通过 <code>hash mod k</code> 决定所属 group。</p>
+
+<ul>
+<li>每个 node 保存：自己 group 中几乎所有 nodes。其他每个 group 的一个 <strong>contact node</strong>。因此用更多 neighbor 信息换取更快的 lookup。</li>
+</ul>
+
+<h4>2. File &amp; Metadata</h4>
+
+<ul>
+<li>文件本身可以存在任意少数 nodes 上，Kelips 主要负责 <strong>file lookup</strong>。</li>
+<li>Filename 通过 hash 映射到一个 Affinity Group。</li>
+<li>该 group 保存文件的 metadata：<code>&lt;filename, file location&gt;</code></li>
+<li><strong>文件位置与查询 metadata 分离</strong>，Affinity Group 不一定真正存储文件。</li>
+</ul>
+
+<h4>3. Lookup</h4>
+
+<p><code>filename → hash → Affinity Group → contact node → file location</code></p>
+
+<ul>
+<li>每个 node 都有其他 group 的 contact，因此通常可以直接找到目标 group。</li>
+<li><strong>Lookup cost：1 hop（失败时可能 few hops）</strong></li>
+<li><strong>Memory cost：</strong></li>
+</ul>
+
+<p>$$
+O(\sqrt{N})
+$$</p>
+
+<h4>4. Soft State</h4>
+
+<ul>
+<li>Membership 使用 <strong>Gossip</strong> 在 group 内和 group 间传播：</li>
+</ul>
+
+<p>$$
+O(\log N) \text{ dissemination time}
+$$</p>
+
+<ul>
+<li>Soft State 核心：<strong>不断刷新则保留，不刷新则自动过期</strong>。File metadata 需要 source node <strong>周期性 refresh</strong>。长时间没有 refresh → metadata <strong>timeout</strong>。</li>
+</ul>
+
+<h4>5. Chord vs. Kelips</h4>
+
+<ul>
+<li><strong>Chord</strong>：</li>
+</ul>
+
+<p>$$
+Memory = O(\log N), \quad Lookup = O(\log N)
+$$</p>
+
+<p>​   <strong>Kelips</strong>：<br />
+$$
+Memory = O(\sqrt{N}), \quad Lookup \approx 1\ hop
+$$</p>
+
+<p>​   核心 tradeoff：<br />
+$$
+Memory \leftrightarrow Lookup\ Cost \leftrightarrow Background\ Bandwidth
+$$</p>
+
+<ul>
+<li><strong>Chord</strong>：保存信息少，但 lookup 多跳。<br />
+<strong>Kelips</strong>：保存更多信息并用 Gossip 维护 freshness，但 lookup 更快。</li>
+</ul>
+
+<h4>6. P2P 总结</h4>
+
+<ul>
+<li>实际广泛使用：<strong>Napster / Gnutella / BitTorrent</strong></li>
+<li>具有可证明性质的 P2P：<strong>Chord / Kelips</strong></li>
+</ul>
+
+<h4>7. 核心要点</h4>
+
+<p>$$
+k \approx \sqrt{N}
+$$</p>
+
+<p>$$
+Memory = O(\sqrt{N})
+$$</p>
+
+<p>$$
+Lookup \approx 1\ hop
+$$</p>
+
+<p>Kelips 本质：<strong>用更多 Memory 和 Background Bandwidth 换更低的 Lookup Cost。</strong></p>

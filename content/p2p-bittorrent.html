@@ -1,0 +1,41 @@
+<h3>1.  Blocks/shard</h3>
+
+<p>Block-based 可以从多个 peer <strong>并行下载</strong>不同 block，从而获得 parallelism、load balancing 和更好的 availability。<br />
+如果整个文件只能从一个 peer 下载，就无法利用其他 peer 的上传带宽，速度受单个 peer 限制，而且该 peer 离开或失败会中断下载。</p>
+
+<h3>2. Rarest-First</h3>
+
+<p>BitTorrent 将文件拆成多个 block/shard，并可以从不同 peer 下载。 <strong>优先下载当前最稀有的 block</strong>。<br />
+$$
+availability(x)=\text{拥有 block }x\text{ 的 peer 数}
+$$<br />
+选择：<br />
+$$
+\arg\min_x availability(x)
+$$<br />
+目的：优先复制稀有 block，避免持有它的 peer 离开后该 block 消失，从而导致整个文件无法恢复。</p>
+
+<h3>3. Most-Common-First 的问题</h3>
+
+<p>如果优先下载最常见的 block，稀有 block 会长期得不到复制；一旦持有稀有 block 的 peer 离开：<br />
+$$
+availability(rare)=0
+$$<br />
+即使其他 block 有很多副本，完整文件仍无法恢复。  <strong>文件可用性受最稀有 block 限制。</strong></p>
+
+<h3>4. 分析方法</h3>
+
+<p>统计每个 block 的副本数 → rarest-first 选择最少的 → tie 按题目规则处理。<br />
+新增 peer 时，只更新它所拥有 block 的 $availability$，然后重新比较。</p>
+
+<h3>5. Peer-to-Peer file sharing&amp;BitTorrent&amp;shard</h3>
+
+<p>Parallelism: 不单个服务器作为瓶颈,每个peer都承担download和upload的任务<br />
+Load distributionFile切成shard本使得文件分散,进行并行传播和并行下载,利用别的节点的空闲带宽,是一种多对多,one download one upload in swarm,分散上传压力<br />
+Better availability: Rarest-First 防止断电找不到数据</p>
+
+<h3>6. Rarest-First下载 VS Most- common- first下载</h3>
+
+<p>文件不完整: 优先下载在系统里副本最少的shard,因为如果出现意外下线,就丢失掉了这个topic,有可能永远拿不到完整的文件<br />
+availability:  目的是提高rare shard availability,让shard distribution更均匀从而降低某个shard消失的风险<br />
+BitTorrent优势是parallelism: 因为备份有传播效应,所以原来已经common的会更common所以要下载rare让所有的均衡,防止single-peer bottleneck</p>
