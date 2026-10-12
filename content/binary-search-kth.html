@@ -1,0 +1,25 @@
+<p>例如数组 [1,1,1,2,2]，其中第 1 小、第 2 小和第 3 小的数都是 1，第 4 小和第 5 小的数都是 2。</p>
+
+<p>对于第 k 小/大问题，有如下转化套路：</p>
+
+<ul>
+<li>第 k 小等价于：求最小的 x，满足 ≤x 的数至少有 k 个。</li>
+<li>第 k 大等价于：求最大的 x，满足 ≥x 的数至少有 k 个。</li>
+</ul>
+
+<p>通常需要构造辅助函数check(mid),进行cnt计数,并与k比较.</p>
+
+<blockquote>
+  <p>注 1：一般规定 k 从 1 开始，而不是像数组下标那样从 0 开始。<br />
+  注 2：部分题目也可以用堆解决。</p>
+</blockquote>
+
+<p>例题<br />
+<a href="https://leetcode.cn/problems/find-k-th-smallest-pair-distance/">719. 找出第 K 小的数对距离</a><br />
+(hard题:二分查找+滑动窗口)要构造辅助函数, 数一下所有距离中, 小于等于X的距离个数,因为不是直接要距离而是对距离进行计数,所以需要复制函数输入距离输出的是计数。对应滑动窗口的“越短越合法”。然后再用二分查找,第k小问题,找x满足小于x的有k个,转化为求最小的问题<br />
+<a href="https://leetcode.cn/problems/kth-smallest-element-in-a-sorted-matrix/">378. 有序矩阵中第 K 小的元素</a><br />
+本质是数组的第k小在有序矩阵的应用,第 K 小的元素=<strong>最小</strong>的x,使得<strong>矩阵中最少有K个元素小于等于它</strong>,check(mid)在矩阵中搜索，返回小于等于x的元素的个数。性质：在矩阵中，任意取一个元素，小于等于它的元素正好在<strong>矩阵的左上方</strong>,因此从左下角开始搜索，若当前元素num小于等于x，则往右移动，同时可知num即其上方所有元素皆小于x，故cnt+=row+1,如果num大于x则往row-1进行移动,因为右边的数不可能满足要求</p>
+
+<blockquote>
+  <p>二分答案的一个难点是 <code>check</code> 函数怎么写，这会涉及到<strong>贪心</strong>等技巧，可以练练下面的贪心题单（主要是第一章节）。</p>
+</blockquote>

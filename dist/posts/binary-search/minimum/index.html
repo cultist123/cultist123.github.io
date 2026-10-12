@@ -1,0 +1,34 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="个人主页、项目与学习笔记"><title>二分答案：求最小 · Nathen</title><link rel="stylesheet" href="/style.css?v=21181a9fe778"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231769aa'/%3E%3Cpath d='M9 8h14v16H9zM12 13h8M12 17h8' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"></head><body><div class="shell"><header class="header"><a class="name" href="/">Nathen</a><nav class="nav" aria-label="主导航"><a href="/">首页</a><a href="/blogs/?v=21181a9fe778" aria-current="page">博客</a><a href="/projects/?v=21181a9fe778">项目</a></nav></header><main id="main-content"><a class="back" href="/posts/binary-search/?v=21181a9fe778">返回文章索引</a><p class="eyebrow">算法 · 二分算法</p><h1>二分答案：求最小</h1><p class="lead">更新于 2026 年 10 月 12 日</p><div class="course-layout"><aside id="course-navigation" class="course-sidebar"><div class="sidebar-heading">文章目录</div><nav aria-label="文章索引"><a class="course-index-link" href="/posts/binary-search/?v=21181a9fe778">二分算法 · 文章索引</a><a href="/posts/binary-search/closed-interval/?v=21181a9fe778">01 · 闭区间二分：搜索与左边界</a><a href="/posts/binary-search/lower-bound/?v=21181a9fe778">02 · 二分查找：边界转化与数量统计</a><a href="/posts/binary-search/non-monotonic/?v=21181a9fe778">03 · 非单调数组：红蓝染色与循环不变量</a><a href="/posts/binary-search/minimum/?v=21181a9fe778" aria-current="page">04 · 二分答案：求最小</a><a href="/posts/binary-search/maximum/?v=21181a9fe778">05 · 二分答案：求最大</a><a href="/posts/binary-search/indirect/?v=21181a9fe778">06 · 二分间接值</a><a href="/posts/binary-search/minimize-maximum/?v=21181a9fe778">07 · 二分答案：最小化最大值</a><a href="/posts/binary-search/maximize-minimum/?v=21181a9fe778">08 · 二分答案：最大化最小值</a><a href="/posts/binary-search/kth/?v=21181a9fe778">09 · 二分答案：第 K 小与第 K 大</a></nav><nav class="local-toc" aria-label="本文目录"><strong>本文目录</strong><a href="#template">思路与模板</a></nav></aside><div class="course-main"><article class="prose course-note"><h2 id="template">思路与模板</h2><p>题目求什么，就二分什么。</p>
+
+<p>例题:<br />
+<a href="https://leetcode.cn/problems/find-the-smallest-divisor-given-a-threshold/">1283. 使结果不超过阈值的最小除数</a><br />
+对余数进行二分,观察数组发现,令余数为数组最大的数可以满足条件,所以范围是[1,max(nums)],对这个数组进行二分查找最小的值,满足要求<br />
+<a href="https://leetcode.cn/problems/minimum-time-to-complete-trips/">2187. 完成旅途的最少时间</a><br />
+对时间进行二分,发现time最小的值✖️trips就是最长需要的时间,对这个数组进行二分求最小值</p>
+
+<p>闭区间二分模版(求最小):</p>
+
+<pre><code>class Solution:
+    # 计算满足 check(x) == True 的最小整数 x（二分答案/寻找第一个 True 的位置）
+    def binarySearchMin(self, nums: List[int]) -&gt; int:
+        # 二分猜答案：判断 mid 是否满足题目要求
+        def check(mid: int) -&gt; bool:
+            # TODO: 实现具体问题的判定逻辑
+            pass
+
+        left =   # 答案的最小可能取值（循环不变量：left - 1 及其左边 check 恒为 False，即红色区域）
+        right =  # 答案的最大可能取值（循环不变量：right + 1 及其右边 check 恒为 True，即蓝色区域）
+
+        while left &lt;= right:  # 闭区间 [left, right] 不为空
+            mid = left + (right - left) // 2
+            if check(mid):  # mid 满足条件（蓝色），说明 check(&gt;= mid 的数) 均为 True
+                right = mid - 1  # 尝试寻找更小的合法解，向左逼近，把 mid 及其右边刷成蓝色
+            else:  # mid 不满足条件（红色），说明 check(&lt;= mid 的数) 均为 False
+                left = mid + 1   # 答案必定在右边，向右放大，把 mid 及其左边刷成红色
+
+        # 循环结束后 left &gt; right（具体为 left = right + 1），未知闭区间彻底被完全抹除
+        # 此时 right 停在最后一个 False（红色），left 精准停在第一个 True（蓝色）
+        # 所以 left 就是满足 check 的最小整数解
+        return left
+</code></pre>
+</article><nav class="lesson-pagination" aria-label="相邻文章"><a rel="prev" href="/posts/binary-search/non-monotonic/?v=21181a9fe778">← 上一篇<br>非单调数组：红蓝染色与循环不变量</a><a rel="next" href="/posts/binary-search/maximum/?v=21181a9fe778">下一篇 →<br>二分答案：求最大</a></nav></div></div><button class="course-menu-button" aria-controls="course-navigation" aria-expanded="false">☰ 目录</button><script>const courseMenu=document.querySelector('.course-menu-button');const courseSidebar=document.querySelector('.course-sidebar');courseMenu.addEventListener('click',()=>{const open=courseMenu.getAttribute('aria-expanded')!=='true';courseMenu.setAttribute('aria-expanded',String(open));courseSidebar.classList.toggle('is-open',open);});courseSidebar.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}));document.addEventListener('keydown',e=>{if(e.key==='Escape'){courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}});</script><script>window.MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js"></script></main><footer class="footer"><span>© 2026 Nathen</span><span>学习、构建与记录。</span></footer></div></body></html>

@@ -1,0 +1,39 @@
+<p>利用一个条件，把数组里所有的元素切分成“红色:不满足条件”和“蓝色:满足条件”两大部分，并给它们涂上颜色。</p>
+
+<ul>
+<li><strong>红色</strong>：代表 <strong>不满足条件</strong> 的元素（位于目标的左边）。</li>
+<li><strong>蓝色</strong>：代表 <strong>满足条件</strong> 的元素（位于目标及其右边）。</li>
+</ul>
+
+<p>在闭区间 <code>while left &lt;= right</code> 的二分过程中 ,<code>left</code> 和 <code>right</code> 维系着如下的不变性：</p>
+
+<ol>
+<li><strong><code>left - 1</code> 及其左边</strong>：已经被<strong>确认染成红色</strong>（非目标区域）。</li>
+<li><strong><code>right + 1</code> 及其右边</strong>：已经被<strong>确认染成蓝色</strong>（目标及右侧区域）。</li>
+<li><strong><code>[left, right]</code> 区间</strong>：是<strong>尚未染色的未知区域</strong>（等待二分去检验）。</li>
+</ol>
+
+<p>而我们做二分查找的最终目的，<strong>就是寻找“第一个蓝色元素”所在的位置</strong>（即红蓝交界处的蓝色起点）。二分查找的过程，本质上就是<strong>用红/蓝两种颜色的油漆，去吞噬中间灰色未知区域的过程</strong>：</p>
+
+<p>随着循环不断进行，灰色的未知区域 <code>[left, right]</code> 被两侧的红蓝油漆不断挤压。</p>
+
+<p>当 <code>left &gt; right</code> 时（即 <code>left = right + 1</code>），<strong>灰色未知区域彻底消失（变成 0）</strong>！</p>
+
+<p>此时数组被完美分割为两半：</p>
+
+<ul>
+<li><strong><code>right</code></strong>：死死停在<strong>最后一个红色</strong>（最后一个不满足条件的位置）。</li>
+<li><strong><code>left</code></strong>：死死停在<strong>第一个蓝色</strong>（第一个满足条件的位置，即我们要找的目标）。</li>
+</ul>
+
+<p>nums[n-1]初始为蓝色</p>
+
+<blockquote>
+  <p>部分题目需要先排序，然后在有序数组上二分查找。</p>
+</blockquote>
+
+<p>例题<br />
+<a href="https://leetcode.cn/problems/find-peak-element/">162. 寻找峰值</a><br />
+每次拿nums[mid]和 nums[mid+1]比较,是一个爬峰的过程。<br />
+<a href="https://leetcode.cn/problems/find-minimum-in-rotated-sorted-array/">153. 寻找旋转排序数组中的最小值</a><br />
+将nums[mid]与固定值nums[n-1]进行比较。</p>

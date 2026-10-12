@@ -1,0 +1,33 @@
+<p>题目求什么，就二分什么。</p>
+
+<p>例题:<br />
+<a href="https://leetcode.cn/problems/find-the-smallest-divisor-given-a-threshold/">1283. 使结果不超过阈值的最小除数</a><br />
+对余数进行二分,观察数组发现,令余数为数组最大的数可以满足条件,所以范围是[1,max(nums)],对这个数组进行二分查找最小的值,满足要求<br />
+<a href="https://leetcode.cn/problems/minimum-time-to-complete-trips/">2187. 完成旅途的最少时间</a><br />
+对时间进行二分,发现time最小的值✖️trips就是最长需要的时间,对这个数组进行二分求最小值</p>
+
+<p>闭区间二分模版(求最小):</p>
+
+<pre><code>class Solution:
+    # 计算满足 check(x) == True 的最小整数 x（二分答案/寻找第一个 True 的位置）
+    def binarySearchMin(self, nums: List[int]) -&gt; int:
+        # 二分猜答案：判断 mid 是否满足题目要求
+        def check(mid: int) -&gt; bool:
+            # TODO: 实现具体问题的判定逻辑
+            pass
+
+        left =   # 答案的最小可能取值（循环不变量：left - 1 及其左边 check 恒为 False，即红色区域）
+        right =  # 答案的最大可能取值（循环不变量：right + 1 及其右边 check 恒为 True，即蓝色区域）
+
+        while left &lt;= right:  # 闭区间 [left, right] 不为空
+            mid = left + (right - left) // 2
+            if check(mid):  # mid 满足条件（蓝色），说明 check(&gt;= mid 的数) 均为 True
+                right = mid - 1  # 尝试寻找更小的合法解，向左逼近，把 mid 及其右边刷成蓝色
+            else:  # mid 不满足条件（红色），说明 check(&lt;= mid 的数) 均为 False
+                left = mid + 1   # 答案必定在右边，向右放大，把 mid 及其左边刷成红色
+
+        # 循环结束后 left &gt; right（具体为 left = right + 1），未知闭区间彻底被完全抹除
+        # 此时 right 停在最后一个 False（红色），left 精准停在第一个 True（蓝色）
+        # 所以 left 就是满足 check 的最小整数解
+        return left
+</code></pre>

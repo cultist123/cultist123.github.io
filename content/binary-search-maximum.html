@@ -1,0 +1,41 @@
+<p>请注意「求最小」和「求最大」在二分写法上的区别。</p>
+
+<p>「求最小」和二分查找求「排序数组中某元素的第一个位置」是类似的，按照红蓝染色法，左边是不满足要求的（红色），右边则是满足要求的（蓝色）。</p>
+
+<p>「求最大」的题目则相反，左边是满足要求的（蓝色），右边是不满足要求的（红色）。这会导致二分写法和上面的「求最小」有一些区别。</p>
+
+<p>以闭区间二分为例：</p>
+
+<ul>
+<li>求最小：check(mid) == true 时更新 right = mid - 1，反之更新 left = mid + 1，最后返回 left。</li>
+<li>求最大：check(mid) == true 时更新 left = mid + 1，反之更新 right = mid - 1，最后返回 right。</li>
+</ul>
+
+<p>对于闭区间写法，出循环check(mid) == true 时左右指针发生交叉（left = right + 1）：求最小（寻找第一个蓝色位置）最终返回 left，求最大（寻找最后一个蓝色位置）最终返回 right。</p>
+
+<pre><code>class Solution:
+    # 计算满足 check(x) == True 的最大整数 x
+    def binarySearchMax(self, nums: List[int]) -&gt; int:
+        # 二分猜答案：判断 mid 是否满足题目要求
+        def check(mid: int) -&gt; bool:
+            # TODO
+
+        left =   # 循环不变量：left - 1 及其左边 check 恒为 True
+        right =   # 循环不变量：right + 1 及其右边 check 恒为 False
+        while left &lt;= right:
+            mid = (left + right) // 2
+            if check(mid):
+                left = mid + 1  # 注意这里更新的是 left = mid + 1，和求最小模板反过来
+            else:
+                right = mid - 1
+        # 循环结束后 left &gt; right（此时 left = right + 1）
+        # 此时 check(right) == True 而 check(right+1) == check(left) == False
+        # 所以 right 就是最大的满足 check 的值
+        return right
+</code></pre>
+
+<p>例题<br />
+<a href="https://leetcode.cn/problems/h-index-ii/">275. H 指数 II</a><br />
+找最大值左边开始染成蓝的,右边是红的,不断推高left使得变为红<br />
+<a href="https://leetcode.cn/problems/maximum-candies-allocated-to-k-children/">2226.每个小孩最多能分到多少糖果</a><br />
+分的糖果数为二分数组,已有的//要分的,即为人数,人数可以与给定的进行比较</p>

@@ -1,0 +1,45 @@
+<p>参考：<a href="https://leetcode.cn/discuss/post/3579164/ti-dan-er-fen-suan-fa-er-fen-da-an-zui-x-3rqn/">灵神题单</a></p>
+
+<p><img src="/images/binary-search/boundary.png" alt="二分题单 二分查找 二分算法 二分入门 二分题目 力扣二分 leetcode 二分 灵茶山艾府 灵神 灵神题单" style="zoom:50%;" /></p>
+
+<blockquote>
+  <p>图：闭区间二分循环结束时的左右指针位置（查找第一个 8）,左右指针位置互换</p>
+</blockquote>
+
+<p>找该数</p>
+
+<pre><code>class Solution:
+    # 标准的二分搜索框架，搜索目标元素的索引，若不存在则返回 -1
+    def search(self, nums: List[int], target: int) -&gt; int:
+        left = 0
+        right = len(nums) - 1
+
+        while left &lt;= right:
+            mid = left + (right - left) // 2
+            if nums[mid] == target:
+                return mid
+            elif nums[mid] &lt; target:
+                left = mid + 1
+            elif nums[mid] &gt; target:
+                right = mid - 1
+        return -1
+</code></pre>
+
+<p>找左边界</p>
+
+<pre><code>def search(self, nums: List[int], target: int) -&gt; int:
+    left = 0
+    right = len(nums) - 1
+
+    while left &lt;= right:
+        mid = left + (right - left) // 2
+        if nums[mid] == target:
+            right=mid-1
+        elif nums[mid] &lt; target:
+            left = mid + 1
+        elif nums[mid] &gt; target:
+            right = mid - 1
+    return left
+</code></pre>
+
+<p>例题:<a href="https://leetcode.cn/problems/find-first-and-last-position-of-element-in-sorted-array/">34. 在排序数组中查找元素的第一个和最后一个位置</a></p>

@@ -1,0 +1,7 @@
+<p>本质是二分答案求最小。二分的 <em>mid</em> 表示上界。</p>
+
+<p>好比用一个盖子（上界）去压住最大值，看看能否压住（check 函数）。</p>
+
+<p>例题<br />
+<a href="https://leetcode.cn/problems/split-array-largest-sum/">410. 分割数组的最大值</a><br />
+遍历数组，当前累加和大于mid时，创建一个新的分割，cnt+=1.注意left的设置,因为箱子本身不能比数字小不然会出现逻辑错误导致,在一个数上重复加2次,所以left = maxval</p>

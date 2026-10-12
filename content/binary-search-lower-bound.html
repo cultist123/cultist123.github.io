@@ -1,0 +1,68 @@
+<p>讲解：<a href="https://leetcode.cn/link/?target=https%3A%2F%2Fwww.bilibili.com%2Fvideo%2FBV1AP41137w7%2F">二分查找 红蓝染色法【基础算法精讲 04】</a></p>
+
+<p>设 <em>nums</em> 为递增（非递减）数组，长为 <em>n</em>。</p>
+
+<p><strong>二分查找常用转化表</strong>：</p>
+
+<table>
+<thead>
+<tr>
+  <th>需求</th>
+  <th>写法</th>
+  <th>如果不存在</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>$\ge x$ 的第一个整数的下标</td>
+  <td><code>lowerBound(nums, x)</code></td>
+  <td>结果为 $n$</td>
+</tr>
+<tr>
+  <td>$&gt; x$ 的第一个整数的下标</td>
+  <td><code>lowerBound(nums, x + 1)</code></td>
+  <td>结果为 $n$</td>
+</tr>
+<tr>
+  <td>$&lt; x$ 的最后一个整数的下标</td>
+  <td><code>lowerBound(nums, x) - 1</code></td>
+  <td>结果为 $-1$</td>
+</tr>
+<tr>
+  <td>$\le x$ 的最后一个整数的下标</td>
+  <td><code>lowerBound(nums, x + 1) - 1</code></td>
+  <td>结果为 $-1$</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>数量统计</strong>:</p>
+
+<table>
+<thead>
+<tr>
+  <th>需求</th>
+  <th>写法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>$&lt; x$ 的整数个数</td>
+  <td><code>lowerBound(nums, x)</code></td>
+</tr>
+<tr>
+  <td>$\le x$ 的整数个数</td>
+  <td><code>lowerBound(nums, x + 1)</code></td>
+</tr>
+<tr>
+  <td>$\ge x$ 的整数个数</td>
+  <td><code>n - lowerBound(nums, x)</code></td>
+</tr>
+<tr>
+  <td>$&gt; x$ 的整数个数</td>
+  <td><code>n - lowerBound(nums, x + 1)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>注意 &lt;<em>x</em> 和 ≥<em>x</em> 互为补集，元素个数之和为 <em>n</em>。≤<em>x</em> 和 &gt;<em>x</em> 同理。</p>
