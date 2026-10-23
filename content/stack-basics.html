@@ -1,20 +1,61 @@
 <blockquote>
-  <p>四类用法: 配对 / 嵌套 / 消除 / 撤销<br />
-  题目要求求什么就往栈里面存什么</p>
+  <p><strong>核心：当前元素要和“最近一个还没处理完的东西”打交道（后进先出）。</strong></p>
+  
+  <ul>
+  <li>普通栈：配对 / 嵌套 / 消除 / 撤销</li>
+  <li>单调栈：找左边 / 右边第一个更大（小）的元素</li>
+  <li>不是栈：要最早放进去的 → 队列（BFS）；要全局最大 / 最小、前 K 个 → 堆；滑动窗口里的最大 / 最小 → 单调双端队列（239）</li>
+  </ul>
 </blockquote>
 
-<p><strong>栈里存什么？</strong></p>
+<p><strong>什么时候用</strong></p>
 
-<p>原则：<strong>弹出时需要什么，就存什么。</strong></p>
+<table>
+<thead>
+<tr>
+  <th>信号</th>
+  <th>栈在干什么</th>
+  <th>例题</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>括号、成对出现</td>
+  <td>右括号和最近的左括号配对</td>
+  <td>20、32、1111</td>
+</tr>
+<tr>
+  <td>嵌套结构（括号表达式、<code>k[...]</code>）</td>
+  <td><code>(</code> 存外层进度，<code>)</code> 弹出接着算</td>
+  <td>856、394、224、772</td>
+</tr>
+<tr>
+  <td>相邻元素消除</td>
+  <td>新来的和栈顶比，能消就消</td>
+  <td>1717、735、1209</td>
+</tr>
+<tr>
+  <td>撤销 / 调用 / 回退</td>
+  <td>最后开始的最先结束</td>
+  <td>844、636</td>
+</tr>
+</tbody>
+</table>
+
+<p>邻项消除：消除后新来的还在 → while（735）；不在了 → if（1717、1209）。</p>
+
+<p><strong>栈里存什么</strong></p>
+
+<p>原则：<strong>弹出时需要什么，就存什么</strong>（题目要求什么就往栈里存什么）。</p>
 
 <ol>
-<li><p><strong>要算距离 / 长度 / 位置 → 存下标</strong>（32、739、84）<br />
-不确定就存下标：值可以用下标查，下标不能用值查。</p></li>
-<li><p><strong>嵌套结构 → 存外层被打断时的进度</strong>（856、394、224）<br />
-<code>(</code> 压栈保存外层，<code>)</code> 弹出接着算。</p></li>
+<li><strong>要算距离 / 长度 / 位置 → 存下标</strong>（32、739、84）<br />
+不确定就存下标：值可以用下标查，下标不能用值查。</li>
+<li><strong>嵌套结构 → 存外层被打断时的进度</strong>（856、394、224）<br />
+<code>(</code> 压栈保存外层，<code>)</code> 弹出接着算。</li>
 </ol>
 
-<p><strong>栈的基本处理流程</strong></p>
+<p><strong>处理流程</strong></p>
 
 <ol>
 <li><strong>初始化</strong>：<code>stack = []</code>。</li>

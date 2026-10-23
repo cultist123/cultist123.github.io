@@ -1,7 +1,7 @@
 from pathlib import Path
 import re,html
 from course_notes import MENU,MATH
-ARTICLES=[('basics', '普通栈：基本思路与处理流程', '普通栈'), ('parentheses', '普通栈：合法括号字符串', '普通栈'), ('elimination', '普通栈：邻项消除', '普通栈'), ('expressions', '普通栈：表达式解析', '普通栈'), ('min-stack', '普通栈：最小栈设计', '普通栈'), ('monotonic-basics', '单调栈：基本原则与遍历方向', '单调栈'), ('monotonic-examples', '单调栈：基础例题', '单调栈'), ('lexicographic', '单调栈：字典序与数字大小', '单调栈'), ('variations', '单调栈：变形', '单调栈')]
+ARTICLES=[('basics', '普通栈：基础知识', '普通栈'), ('parentheses', '普通栈：合法括号字符串', '普通栈'), ('elimination', '普通栈：邻项消除', '普通栈'), ('expressions', '普通栈：表达式解析', '普通栈'), ('min-stack', '普通栈：最小栈设计', '普通栈'), ('monotonic-basics', '单调栈：基础知识', '单调栈'), ('monotonic-examples', '单调栈：基础例题', '单调栈'), ('lexicographic', '单调栈：字典序与数字大小', '单调栈'), ('variations', '单调栈：变形', '单调栈')]
 BASE='/posts/stack/'
 def url(slug=''):return BASE+(slug+'/' if slug else '')+'?v=sliding-20261009-1'
 def build(page):
