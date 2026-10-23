@@ -1,0 +1,18 @@
+<p><img src="/images/stack/monotonic-stack.png" alt="image-20261020201531318" style="zoom:50%;" /></p>
+
+<ul>
+<li><p>找左/右边第一个更大的数：降序栈<br />
+找左/右边第一个更小的数：升序栈</p></li>
+<li><p>遍历方向：双向都可以，一种是去除无用，一种是去除已经有答案的数。</p></li>
+</ul>
+
+<p>去除已经有答案的数：在循环里，一边把它弹出来，一边给它答案.<br />
+去除无用：在新遍历到某个数的时候，给它答案。</p>
+
+<p>找右边第一个更大/小的数：<strong>从左到右</strong>遍历是<strong>去除已经有答案的数</strong>，<strong>从右到左</strong>是<strong>去除无用</strong></p>
+
+<p>想要留下那些最大的数：降序栈</p>
+
+<blockquote>
+  <p>即时去掉无用数据,保证栈中数据有序</p>
+</blockquote>

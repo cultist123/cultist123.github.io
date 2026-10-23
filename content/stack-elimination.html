@@ -1,0 +1,8 @@
+<p><a href="https://leetcode.cn/problems/maximum-score-from-removing-substrings/">1717. 删除子字符串的最大得分</a>——相邻消除<br />
+贪心，先尽量删分值大的 ab, 再删分值小的 ba. 不用while,算两遍,先算s再算剩下的rest</p>
+
+<p><a href="https://leetcode.cn/problems/asteroid-collision/">735. 小行星碰撞</a>——相邻消除<br />
+用 while， 碰撞过后，要继续和栈里的行星碰撞。条件分支负责的话加个alive作为flag</p>
+
+<p><a href="https://leetcode.cn/problems/remove-all-adjacent-duplicates-in-string-ii/">1209. 删除字符串中的所有相邻重复项 II</a>——相邻消除<br />
+栈里面放字母和它目前出现的次数，遇到新的字符，首先<strong>比较它是否与栈顶相同</strong>。如果相同，则栈顶次数+1,重复的只存一次,频率只修改一个就行,不需要出现一次往上加一个</p>

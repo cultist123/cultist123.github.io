@@ -1,0 +1,69 @@
+<p><a href="https://leetcode.cn/problems/decode-string/">394. decode string</a>——嵌套<br />
+Input: s = "2[abc]3[cd]ef" Output: "abcabccdcdcdef"<br />
+遇到[, 入栈(ans,num)，清空ans和num<br />
+遇到]，出栈ans = prev + ans*k<br />
+ans和num用来记录当前字符串的前缀，以及之后字符串需要重复的倍数。 num有可能是多位数所以要处理。<br />
+c.isdigit()数字是多位数</p>
+
+<blockquote>
+  <p>栈里存的就是<strong>两样“进入里层后会被覆盖、但出来时还要用”的东西</strong>。正好之前的字符串和要乘的数字在进行处理之后都会没有</p>
+</blockquote>
+
+<p><a href="https://leetcode.cn/problems/basic-calculator/">224. 基本计算器</a>——嵌套<br />
+<strong>用栈处理括号</strong><br />
+存下出来之后要使用的量,所以一次存两个。变量：<code>res</code>、<code>num</code>、<code>sign</code>（初始为 1）、<code>stack</code></p>
+
+<ul>
+<li>数字：<code>num = num * 10 + int(c)</code><br />
+<code>+</code> / <code>-</code>：<code>res += sign * num</code>，更新 sign，num 置 0<br />
+<code>(</code>：把外层的答案 res 和括号前的符号 sign 一起入栈（出括号时要用这两个算），然后 res 置 0、sign 置 1<br />
+<code>)</code>：先 <code>res += sign * num</code>，再弹出 <code>prev_res, prev_sign</code>，<code>res = prev_res + prev_sign * res</code><br />
+结束：返回 <code>res + sign * num</code></li>
+</ul>
+
+<p><a href="https://leetcode.cn/problems/basic-calculator-iii/">772. 基本计算器 III</a>——嵌套,递归<br />
+<strong>用递归来处理括号</strong><br />
+变量：<code>it = iter(s)</code>（所有层共享读取位置），每层 <code>dfs</code> 各有 <code>stack</code>、<code>num</code>、<code>op</code>（初始为 +）</p>
+
+<ul>
+<li>数字：<code>num = num * 10 + int(c)</code><br />
+<code>(</code>：递归 <code>num = dfs()</code>，括号整体当成一个数（递归自动保存外层的 stack、num、op）<br />
+<code>+-*/)</code>：前一个数读完了，用前一个 op 处理它，再记下新 op、num 置 0<br />
+<code>+</code> 压 num，<code>-</code> 压 -num，<code>*</code> / <code>/</code> 和栈顶马上算（除法用 <code>int(a / b)</code> 向 0 取整）<br />
+<code>)</code>：处理完最后一个数，返回 <code>sum(stack)</code><br />
+for 结束：字符串读完，再处理一次最后一个数，返回 <code>sum(stack)</code></li>
+</ul>
+
+<pre><code>class Solution(object):
+    def calculate(self, s):
+        it = iter(s) # 所有递归层共享，读走的字符就没了
+        def apply(stack,op,num):
+            if op=="+":
+                stack.append(num)
+            elif op=="-":
+                stack.append(-num)  
+            elif op=="*":
+                stack.append(stack.pop()*num)   
+            else:
+                stack.append(int(float(stack.pop())/num))
+        def dfs():
+            stack=[]
+            op="+"
+            num=0
+            for c in it:
+                if c.isdigit():
+                    num=num*10+int(c)
+                elif c=="(":
+                    num=dfs()
+                #当读到第一个字符才知道数字已经读完,所以开始处理上一个op的运算
+                elif c in "+-*/)":
+                    apply(stack,op,num)
+                    if c ==")":
+                        return sum(stack)
+                    #处理完上一个再进行改变
+                    op=c
+                    num=0
+            apply(stack,op,num)
+            return sum(stack)
+        return dfs() 
+</code></pre>

@@ -1,0 +1,13 @@
+<p><a href="https://leetcode.cn/problems/daily-temperatures/">739.每日温度</a><br />
+包括单调增和单调减栈,从右往左遍历，此时发现5比2，3大，因此可以去除2和3。降序栈。**已经不会是别人答案的数，不需要放在栈里。**从左往右遍历，降序栈。<strong>已经拥有答案的数，不需要放在栈里。</strong></p>
+
+<p><img src="/images/stack/daily-temperatures.png" alt="Alt text" style="zoom:50%;" /></p>
+
+<p><a href="https://leetcode.cn/problems/largest-rectangle-in-histogram/">84. Largest Rectangle in Histogram</a><br />
+前后两个哨兵节点[0]。找左右第一个<strong>更小</strong>的元素用<strong>升序栈</strong>。当栈顶从栈里 pop 出来的时候，更新的答案高为heigh[栈顶],width（这个矩形的左右边界）为此时的宽度,计算面积.</p>
+
+<p><a href="https://leetcode.cn/problems/maximal-rectangle/">85.最大矩形</a><br />
+84题升级版,二维问题拆解成m次的一维问题,看成一种生长的柱子,关键规则:一旦遇到0,不管之前柱子多高都归零.84写的不熟练</p>
+
+<p><a href="https://leetcode.cn/problems/number-of-visible-people-in-a-queue/">1944. 队列中可以看到的人数</a><br />
+因为是从左往右看,所以从右往左遍历，用降序栈。一旦有更大的元素入栈，则<strong>循环把比它小的元素移出栈</strong>，这几个人被他挡住了，以后不会再被别人看到，且当前人能看到他们。待循环结束后，如果此时栈中还有元素，则他看到的人数再+=1。</p>

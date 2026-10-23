@@ -1,0 +1,6 @@
+<p><a href="https://leetcode.cn/problems/maximum-width-ramp/">962. 最大宽度坡</a><br />
+起点从左往右递减栈,如果j>i,nums[j]&gt;nums[i],在贪心下j不会回比i更有机会更远,所以不入栈<br />
+终点从右往左比较,j>i,j>stacke[-1],i>stack[-1],所以i才是离stack[-1]最远的距离,所以一完成出栈条件就弹出,当碰到无法出栈就移动到下一个</p>
+
+<p><a href="https://leetcode.cn/problems/longest-well-performing-interval/">1124. 表现良好的最长时间段</a><br />
+前缀和+降序栈,较难,思路是找起点和终点,相减是长度,起点从左往右找,终点从右往左找,需要两次遍历,先找起点,再找长度,注意从0开始,前缀和从0,以及栈本身里面就有0</p>

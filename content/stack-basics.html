@@ -1,0 +1,28 @@
+<blockquote>
+  <p>四类用法: 配对 / 嵌套 / 消除 / 撤销<br />
+  题目要求求什么就往栈里面存什么</p>
+</blockquote>
+
+<p><strong>栈里存什么？</strong></p>
+
+<p>原则：<strong>弹出时需要什么，就存什么。</strong></p>
+
+<ol>
+<li><p><strong>要算距离 / 长度 / 位置 → 存下标</strong>（32、739、84）<br />
+不确定就存下标：值可以用下标查，下标不能用值查。</p></li>
+<li><p><strong>嵌套结构 → 存外层被打断时的进度</strong>（856、394、224）<br />
+<code>(</code> 压栈保存外层，<code>)</code> 弹出接着算。</p></li>
+</ol>
+
+<p><strong>栈的基本处理流程</strong></p>
+
+<ol>
+<li><strong>初始化</strong>：<code>stack = []</code>。</li>
+<li><strong>遇到普通元素</strong>：入栈，暂存后续需要的数据。</li>
+<li><strong>遇到处理信号</strong>：出栈取出需要的数据，完成处理；如果结果后续还要用，就重新入栈。</li>
+</ol>
+
+<p><a href="https://leetcode.cn/problems/evaluate-reverse-polish-notation/">150.逆波兰表达式求值</a></p>
+
+<p><a href="https://leetcode.cn/problems/exclusive-time-of-functions/">636. 函数的独占时间</a><br />
+后进先出,栈顶表示当前正在运行的操作,递归构造时间,需要prev切上一个时间段</p>

@@ -1,0 +1,28 @@
+<p><a href="https://leetcode.cn/problems/longest-valid-parentheses/">32.最长有效括号</a>——配对<br />
+第一遍循环, 用一个<strong>掩码表mark</strong>记录匹配成功的index,成功标为True。遇到(时，把它的 index 加入栈。遇到）如果stack有东西时，从栈里pop出一个(，它们两个匹配成功，把mark中它们两个的index上都标记为True,同时如果stack没东西,说明不符合先左再右的规则,就直接跳过.<br />
+第二遍循环,统计最长的连续True子数组长度即可。</p>
+
+<p><a href="https://leetcode.cn/problems/score-of-parentheses/">856.括号的分数</a>——嵌套</p>
+
+<p>规则：<code>()</code> 得 1 分；<code>AB</code> 得 A + B 分；<code>(A)</code> 得 2 × A 分。</p>
+
+<p>思路：把每对括号看成一个盒子，用栈保存“外层被打断时的进度”。栈里存的不是括号，而是<strong>进入里层之前，外层已经算好的分数</strong>。</p>
+
+<ul>
+<li>初始化 <code>stack = []</code>，<code>cur = 0</code>。<code>cur</code> 表示<strong>当前这一层已经并排攒了多少分</strong></li>
+<li>见到 <code>(</code>：要进入里层了。把 <code>cur</code> push 进栈，<strong>保存外层到目前为止的分数</strong>；然后 <code>cur</code> 清零，开始计算这对括号里面的值</li>
+<li>见到 <code>)</code>：这对括号结束，<code>res</code> 是括号<strong>里面</strong>的总分
+<ul>
+<li>先算这对括号本身的值：里面是空的（cur == 0）就是 1 ，否则是 2 × cur</li>
+<li>再 <code>stack.pop()</code> 取回<strong>外层在这对括号之前攒的分数</strong>，两者相加，作为新的 <code>cur</code>（这一步就是 AB = A + B）</li>
+<li>如果后面还有 <code>(</code>，这个 <code>cur</code> 会被 push 进栈继续保存,相当于暂存结果,等下个<code>(</code>算完了再并行加上；如果到结尾了，<code>cur</code> 就是答案</li>
+</ul></li>
+</ul>
+
+<p>三条规则对应的代码：<br />
+- <code>()</code> = 1 → <code>if cur == 0: inner = 1</code><br />
+- <code>(A)</code> = 2 × A → <code>else: inner = 2 * cur</code><br />
+- <code>AB</code> = A + B → <code>res = stack.pop() + inner</code></p>
+
+<p><a href="https://leetcode.cn/problems/maximum-nesting-depth-of-two-valid-parentheses-strings/">1111. 有效括号的嵌套深度</a><br />
+(没用到栈,本身是对嵌套的处理)把嵌套深度为奇数的括号和为偶数的括号，分别分到两个组。</p>
