@@ -2,9 +2,10 @@ from pathlib import Path
 import html
 import re
 import hashlib
+from course_notes import topic_rows
 root=Path(__file__).parent/'dist'
 # One revision controls page links and styles across every generated page.
-site_revision=hashlib.sha256((root/'style.css').read_bytes()+(Path(__file__).parent/'content/stack.md').read_bytes()+(Path(__file__).parent/'content/heap.md').read_bytes()+(Path(__file__).parent/'content/queue.md').read_bytes()).hexdigest()[:12]
+site_revision=hashlib.sha256((root/'style.css').read_bytes()+(Path(__file__).parent/'content/stack.md').read_bytes()+(Path(__file__).parent/'content/heap.md').read_bytes()+(Path(__file__).parent/'content/queue.md').read_bytes()+(Path(__file__).parent/'course_notes.py').read_bytes()).hexdigest()[:12]
 def page(title,active,body,path):
     nav=''.join(f'<a href="{url}"'+(' aria-current="page"' if key==active else '')+f'>{label}</a>' for key,label,url in [('home','首页','/'),('blogs','博客','/blogs/'),('projects','项目','/projects/')])
     text=f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="个人主页、项目与学习笔记"><title>{title} · Nathen</title><link rel="stylesheet" href="/style.css?v={site_revision}"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231769aa'/%3E%3Cpath d='M9 8h14v16H9zM12 13h8M12 17h8' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"></head><body><div class="shell"><header class="header"><a class="name" href="/">Nathen</a><nav class="nav" aria-label="主导航">{nav}</nav></header><main id="main-content">{body}</main><footer class="footer"><span>© 2026 Nathen</span><span>学习、构建与记录。</span></footer></div></body></html>'''
@@ -17,7 +18,7 @@ for cat,label in [('systems','分布式系统'),('algorithms','算法'),('java',
     cats+=f'<a href="#{cat}">{label}</a>'
     rows=''.join(f'<article class="row"><time datetime="2026-10-03">2026 年 10 月 3 日</time><h3><a href="/posts/{slug}/">{title}</a></h3></article>' for c,l,slug,title,desc,sections in posts if c==cat)
     if cat=='systems':
-        rows='<article class="row"><time datetime="2026-10-09">2026 年 10 月 9 日</time><h3><a href="/posts/p2p/">分布式系统 · 文章索引</a></h3></article>'+rows
+        rows=topic_rows()+rows
     if cat=='algorithms':
         rows='<article class="row"><time datetime="2026-10-09">2026 年 10 月 9 日</time><h3><a href="/posts/sliding-window/?v=sliding-20261009-1">滑动窗口 · 文章索引</a></h3></article>'+rows
     if cat=='algorithms':
