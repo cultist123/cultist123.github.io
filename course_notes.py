@@ -33,7 +33,7 @@ TOPICS = [
 def topic_url(name):
  return '/topics/distributed/'+next(slug for slug,label in TOPICS if label==name)+'/'
 def topic_rows():
- return ''.join(f'<article class="row"><time datetime="2026-10-24">{sum(c==label for _,_,c in LESSONS)} 篇文章</time><h3><a href="{topic_url(label)}">{label}</a></h3></article>' for _,label in TOPICS)
+ return ''.join(f'<article class="row"><time datetime="2026-10-09">2026 年 10 月 9 日</time><h3><a href="{topic_url(label)}">{label}</a></h3></article>' for _,label in TOPICS)
 def build(page):
  rendered={}
  for slug,title,group in LESSONS:
