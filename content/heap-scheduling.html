@@ -1,0 +1,20 @@
+<p><a href="https://leetcode.cn/problems/divide-intervals-into-minimum-number-of-groups/">2406.将区间分为最少组数</a><br />
+<strong>区间经典题</strong>（同会议室 II）：按开始排序，堆里放结束时间</p>
+
+<p><a href="https://leetcode.cn/problems/the-number-of-the-smallest-unoccupied-chair/">1942. 最小未被占据椅子的编号</a><br />
+较难,需要两个堆配合,一个维护区间,见2406,另一个维护椅子,为了每次找到最小的椅子编号要在放入下一个之前先把所有释放的椅子加入,相当于两个组互吸,一个吐出椅子放入人,一个吐出人放入椅子</p>
+
+<p><a href="https://leetcode.cn/problems/single-threaded-cpu/">1834. 单线程 CPU</a><br />
+好题,注意各种变量都在控制什么东西,arr,i,times,ans 是一种播快时间和缓存,还有对cpu串行的理解,可以仔细看注释,进heap队列的条件是: 只要时间times到了，不管候诊室里有没有人，都应该进去排队，正确的条件只看两件事：<strong>门外还有人（<code>j &lt; n</code>）</strong>，并且<strong>这个人已经到了（<code>arr[j][0] &lt;= times</code>）</strong></p>
+
+<p><a href="https://leetcode.cn/problems/maximum-number-of-events-that-can-be-attended/">1353. 最多可以参加的会议数目</a><br />
+和单线程cpu逻辑基本上一样,但是day不能跳过且要按天遍历,时间计算不一样,弹掉过期的会议,每天贪心参加结束时间最短的会议,因为结束时间的晚越有概率放到后面参加,先弹掉很重要,不然就会发生这天没参加会议,浪费了一天</p>
+
+<p><a href="https://leetcode.cn/problems/process-tasks-using-servers/">1882. 使用服务器处理任务</a><br />
+注意这个问题前提是每秒来一个任务,而不是前面,每秒来好多任务,所以只有任务阻塞时,之后释放了才会出现并行的情况,结合了前面的1834单线程播快时间的操作,和1353的区别是能进行时间跳跃,不是i按照顺序指下去, 注意没有空闲服务器要进行时间跳跃操作</p>
+
+<p>两个堆：<code>arr</code> 放空闲服务器 <code>(权重, 下标)</code>，<code>heap</code> 放忙碌服务器 <code>(空出来的时间, 权重, 下标)</code>。</p>
+
+<p>每个任务一轮：先 <code>cur = max(cur, i)</code>，把 <code>heap</code> 里空出来时间 <code>&lt;= cur</code> 的放回 <code>arr</code>；如果没有空闲的，<code>cur</code> 跳到 <code>heap[0][0]</code> 再释放一次；然后从 <code>arr</code> 弹出一台，<code>time = cur + tasks[i]</code> 放进 <code>heap</code>。</p>
+
+<p>⚠️ 时间要单独用 <code>cur</code> 记“现在实际几点”，不能直接用 i，因为任务可能要排队。外层循环只跑任务个数，不能写 <code>or heap</code>，否则死循环。</p>
