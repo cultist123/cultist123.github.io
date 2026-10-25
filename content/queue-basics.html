@@ -1,0 +1,19 @@
+<h3>1.1 Python 中的队列操作</h3>
+
+<p>Python 里用 <code>deque</code> 当队列。</p>
+
+<pre><code>from collections import deque
+
+q = deque()
+q.append(x)       # 队尾进
+q.popleft()       # 队头出
+q[0]              # 看队头
+q[-1]             # 看队尾
+q.pop()           # 队尾出（双端队列才用）
+</code></pre>
+
+<h3>1.2 基础应用</h3>
+
+<p>队列常用在 BFS 中，见 <a href="https://leetcode.cn/circle/discuss/YiXPXW/">网格图题单</a> 和 <a href="https://leetcode.cn/circle/discuss/01LUak/">图论题单</a>。与此相比，栈常用在 DFS 中，但无需我们手动维护。</p>
+
+<p><a href="https://leetcode.cn/problems/number-of-recent-calls/">933.最近的请求次数</a></p>

@@ -4,7 +4,7 @@ import re
 import hashlib
 root=Path(__file__).parent/'dist'
 # One revision controls page links and styles across every generated page.
-site_revision=hashlib.sha256((root/'style.css').read_bytes()+(Path(__file__).parent/'content/stack.md').read_bytes()+(Path(__file__).parent/'content/heap.md').read_bytes()).hexdigest()[:12]
+site_revision=hashlib.sha256((root/'style.css').read_bytes()+(Path(__file__).parent/'content/stack.md').read_bytes()+(Path(__file__).parent/'content/heap.md').read_bytes()+(Path(__file__).parent/'content/queue.md').read_bytes()).hexdigest()[:12]
 def page(title,active,body,path):
     nav=''.join(f'<a href="{url}"'+(' aria-current="page"' if key==active else '')+f'>{label}</a>' for key,label,url in [('home','首页','/'),('blogs','博客','/blogs/'),('projects','项目','/projects/')])
     text=f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="个人主页、项目与学习笔记"><title>{title} · Nathen</title><link rel="stylesheet" href="/style.css?v={site_revision}"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231769aa'/%3E%3Cpath d='M9 8h14v16H9zM12 13h8M12 17h8' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"></head><body><div class="shell"><header class="header"><a class="name" href="/">Nathen</a><nav class="nav" aria-label="主导航">{nav}</nav></header><main id="main-content">{body}</main><footer class="footer"><span>© 2026 Nathen</span><span>学习、构建与记录。</span></footer></div></body></html>'''
@@ -26,6 +26,8 @@ for cat,label in [('systems','分布式系统'),('algorithms','算法'),('java',
         rows='<article class="row"><time datetime="2026-10-22">2026 年 10 月 22 日</time><h3><a href="/posts/stack/">栈 · 文章索引</a></h3></article>'+rows
     if cat=='algorithms':
         rows='<article class="row"><time datetime="2026-10-24">2026 年 10 月 24 日</time><h3><a href="/posts/heap/">堆 · 文章索引</a></h3></article>'+rows
+    if cat=='algorithms':
+        rows='<article class="row"><time datetime="2026-10-24">2026 年 10 月 24 日</time><h3><a href="/posts/queue/">队列 · 文章索引</a></h3></article>'+rows
     groups+=f'<section class="group" id="{cat}"><h2>{label}</h2><div class="list">{rows}</div></section>'
 page('博客','blogs',f'<p class="eyebrow">Writing & notes</p><h1>博客</h1><p class="lead">记录学习、项目与思考。</p><div class="directory"><nav class="categories" aria-label="文章分类"><span>文章分类</span>{cats}</nav><div>{groups}</div></div>','blogs/index.html')
 page('首页','home','''<section class="intro"><div class="intro-copy"><p class="eyebrow">Backend · Distributed systems · Robotics</p><h1>你好，我是 Nathen。</h1><p class="lead">我是 Zewen Shen，目前在伊利诺伊大学厄巴纳-香槟分校（UIUC）攻读计算机工程硕士，方向为自主系统与机器人。我关注后端工程、分布式系统、AI 基础设施与实时感知。</p><div class="contact-links"><a class="pill" href="/blogs/">阅读博客</a><a class="pill" href="https://github.com/cultist123">GitHub</a><a class="pill" href="https://www.linkedin.com/in/zewen-shen-471490349/">LinkedIn</a></div></div><div class="portrait-frame"><img class="portrait" src="/images/nathen.jpg" alt="Nathen 的个人照片" width="168" height="168"></div></section><section class="prose"><h2>关于我</h2><p>我的工作横跨软件系统与物理世界：从 IoT 数据采集和设备控制，到实时视觉定位，再到基于 Raft 的分布式存储和 AI Agent 工作流。我喜欢把系统实现、实验过程与学习心得记录下来。</p><h2>博客</h2><p>记录工程实践与系统设计中的思考。</p><p><a href="/blogs/">查看学习笔记</a></p><h2>项目</h2><p>正在这个空间整理分布式键值存储、实时 IoT 监控平台和 AI 基础设施 Copilot 的实现。</p><p><a href="/projects/">查看项目详情</a></p></section><section><h2>教育经历</h2><article class="panel"><h3>University of Illinois Urbana-Champaign</h3><p>计算机工程硕士 · Autonomy & Robotics</p></article><article class="panel"><h3>Nanjing Normal University · 南京师范大学</h3><p>Electrical and Computer Engineering 理学学士</p><p class="note">2022.08 – 2026.05</p><p>Dean’s Award、2026 届优秀毕业生。</p></article></section><section><h2>实习经历</h2><article class="panel"><h3>GoodWe · 固德威</h3><p>软件工程实习生 · 后端与 IoT 平台</p><p class="note">2026.05 – 2026.08 · 苏州</p><p>参与设备协议评估与接入，基于 MQTT、Apache Flink 和 Kafka 扩展遥测数据解析与标准化；使用 Kafka、MQTT 和 Redis 实现设备控制的确认、幂等、超时与重试，并完成端到端测试。</p></article></section><section class="prose"><h2>技术工具</h2><p><strong>语言：</strong>Java、Python、C/C++、JavaScript、SQL。</p><p><strong>后端与数据：</strong>Spring Boot、Node.js、Express、gRPC、WebSocket、PostgreSQL、MySQL、Redis、MongoDB、Kafka。</p><p><strong>系统与 AI：</strong>Docker、Kubernetes、AWS、Linux、PyTorch、LangGraph、RAG、OpenCV。</p></section>''','index.html')
@@ -48,3 +50,6 @@ build_stack_notes(page)
 
 from heap_notes import build as build_heap_notes
 build_heap_notes(page)
+
+from queue_notes import build as build_queue_notes
+build_queue_notes(page)

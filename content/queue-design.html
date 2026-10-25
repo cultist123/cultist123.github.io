@@ -1,0 +1,11 @@
+<p><a href="https://leetcode.cn/problems/implement-queue-using-stacks/">232.用栈实现队列</a><br />
+(面试常考)一个栈作为输入栈，另一个栈作为输出栈,注意move封装,判断不存在不能用[-1],要用not stack,因为如果是0也会返回false</p>
+
+<p><a href="https://leetcode.cn/problems/design-circular-queue/">622. 设计循环队列</a><br />
+用长度为(cap+1)的数组实现，用 rear 指向下一个数放置的 index，front 指向<strong>当前队列</strong>第一个元素的 index。用双指针和数组,构造出循环的假象</p>
+
+<pre><code>self.front = (self.front + 1) % self.cap
+return self.arr[(self.rear - 1) % self.cap]
+</code></pre>
+
+<p>注意找位置要细心,注意往前还是往后走</p>
