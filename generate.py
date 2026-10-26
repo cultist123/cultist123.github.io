@@ -5,7 +5,7 @@ import hashlib
 from course_notes import topic_rows
 root=Path(__file__).parent/'dist'
 # One revision controls page links and styles across every generated page.
-site_revision=hashlib.sha256((root/'style.css').read_bytes()+(Path(__file__).parent/'content/stack.md').read_bytes()+(Path(__file__).parent/'content/heap.md').read_bytes()+(Path(__file__).parent/'content/queue.md').read_bytes()+(Path(__file__).parent/'course_notes.py').read_bytes()+(Path(__file__).parent/'content/home.html').read_bytes()).hexdigest()[:12]
+site_revision=hashlib.sha256((root/'style.css').read_bytes()+(Path(__file__).parent/'content/stack.md').read_bytes()+(Path(__file__).parent/'content/heap.md').read_bytes()+(Path(__file__).parent/'content/queue.md').read_bytes()+(Path(__file__).parent/'course_notes.py').read_bytes()+(Path(__file__).parent/'content/home.html').read_bytes()+(Path(__file__).parent/'content/transformer.md').read_bytes()+(Path(__file__).parent/'content/lora.md').read_bytes()).hexdigest()[:12]
 def page(title,active,body,path):
     nav=''.join(f'<a href="{url}"'+(' aria-current="page"' if key==active else '')+f'>{label}</a>' for key,label,url in [('home','首页','/'),('blogs','博客','/blogs/'),('projects','项目','/projects/')])
     text=f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="个人主页、项目与学习笔记"><title>{title} · Nathen</title><link rel="stylesheet" href="/style.css?v={site_revision}"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231769aa'/%3E%3Cpath d='M9 8h14v16H9zM12 13h8M12 17h8' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"></head><body><div class="shell"><header class="header"><a class="name" href="/">Nathen</a><nav class="nav" aria-label="主导航">{nav}</nav></header><main id="main-content">{body}</main><footer class="footer"><span>© 2026 Nathen</span><span>学习、构建与记录。</span></footer></div></body></html>'''
@@ -14,7 +14,7 @@ def page(title,active,body,path):
     target=root/path;target.parent.mkdir(parents=True,exist_ok=True);target.write_text(text)
 posts=[('java', 'Java', 'threads', 'Java 并发学习笔记', '理解线程、共享状态和同步机制。', [('共享状态', '多个线程访问同一份可变数据时，需要关注可见性与原子性。一个简单的递增操作也可能包含多个步骤。'), ('同步机制', 'synchronized 和锁可以保护临界区。缩小共享状态和临界区范围，通常比增加复杂同步逻辑更容易维护。')]), ('notes', '随笔', 'first-post', '开始记录，慢慢积累', '给这个个人空间的第一篇笔记。', [('为什么写下来', '把一个问题写清楚，常常意味着重新梳理自己的理解。这里会保留学习过程中的问题、尝试和收获。'), ('接下来', '可以从一个技术问题、一个小项目或一次实验开始。每篇文章只需要讲清楚一个具体问题。')])]
 groups='';cats=''
-for cat,label in [('systems','分布式系统'),('algorithms','算法'),('java','Java'),('notes','随笔')]:
+for cat,label in [('systems','分布式系统'),('algorithms','算法'),('ai','AI 与模型'),('java','Java'),('notes','随笔')]:
     cats+=f'<a href="#{cat}">{label}</a>'
     rows=''.join(f'<article class="row"><time datetime="2026-10-03">2026 年 10 月 3 日</time><h3><a href="/posts/{slug}/">{title}</a></h3></article>' for c,l,slug,title,desc,sections in posts if c==cat)
     if cat=='systems':
@@ -29,6 +29,8 @@ for cat,label in [('systems','分布式系统'),('algorithms','算法'),('java',
         rows='<article class="row"><time datetime="2026-10-24">2026 年 10 月 24 日</time><h3><a href="/posts/heap/">堆 · 文章索引</a></h3></article>'+rows
     if cat=='algorithms':
         rows='<article class="row"><time datetime="2026-10-24">2026 年 10 月 24 日</time><h3><a href="/posts/queue/">队列 · 文章索引</a></h3></article>'+rows
+    if cat=='ai':
+        rows=''.join(f'<article class="row"><time datetime="2026-10-26">2026 年 10 月 26 日</time><h3><a href="/posts/{slug}/">{title}</a></h3></article>' for slug,title in [('transformer','Transformer'),('lora','LoRA：低秩适配')])
     groups+=f'<section class="group" id="{cat}"><h2>{label}</h2><div class="list">{rows}</div></section>'
 page('博客','blogs',f'<p class="eyebrow">Writing & notes</p><h1>博客</h1><p class="lead">记录学习、项目与思考。</p><div class="directory"><nav class="categories" aria-label="文章分类"><span>文章分类</span>{cats}</nav><div>{groups}</div></div>','blogs/index.html')
 page('首页','home',(Path(__file__).parent/'content/home.html').read_text(),'index.html')
@@ -54,3 +56,6 @@ build_heap_notes(page)
 
 from queue_notes import build as build_queue_notes
 build_queue_notes(page)
+
+from ai_notes import build as build_ai_notes
+build_ai_notes(page)

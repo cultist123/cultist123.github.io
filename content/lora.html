@@ -1,0 +1,87 @@
+<p><img src="/images/ai/image-20261021143308123.png" alt="image-20261021143308123" style="zoom:50%;" /></p>
+
+<h2>核心5 个公式</h2>
+
+<p>$$
+W = W_0 + \Delta W
+$$</p>
+
+<p>$$
+\Delta W = BA
+$$</p>
+
+<p>$$
+h = W_0x + BAx
+$$</p>
+
+<p>$$
+\operatorname{rank}(BA) \le r
+$$</p>
+
+<p>$$
+W&#x27; = W_0 + BA
+$$</p>
+
+<h2>1. Problem</h2>
+
+<p>Full Fine-tuning 需要更新整个模型，导致 <strong>trainable parameters、gradient、optimizer states 和 task checkpoint 都很大</strong>。LoRA 只训练少量旁路参数,并冻结大模型参数完成模型适配。</p>
+
+<h2>2. Core Idea</h2>
+
+<p>Fine-tuning：<br />
+$$
+W = W_0 + \Delta W
+$$<br />
+LoRA 假设真正的更新 $\Delta W$ 具有 <strong>low intrinsic rank</strong>，因此：<br />
+$$
+\Delta W = BA
+$$<br />
+其中：<br />
+$$
+B \in \mathbb{R}^{d \times r}, \quad A \in \mathbb{R}^{r \times k}
+$$<br />
+并且：<br />
+$$
+r \ll d,k
+$$<br />
+$W_0$ 被冻结，只训练 $A,B$。</p>
+
+<h2>3. Training</h2>
+
+<p>$$
+h = W_0x + BAx
+$$</p>
+
+<ul>
+<li>$W_0$：Frozen，但仍参与 forward</li>
+<li>$A,B$：Trainable</li>
+<li>减少 trainable parameters、gradient、optimizer states 和 task checkpoint</li>
+</ul>
+
+<h2>4. Rank</h2>
+
+<p>$$
+\operatorname{rank}(BA) \le r
+$$</p>
+
+<p>$r$ 表示 LoRA 最多可以使用多少个独立方向修改模型。论文发现很小的 $r$ 也能取得很好效果，说明真正重要的 adaptation directions 可能很少。</p>
+
+<h2>5. Inference</h2>
+
+<p>训练完成后可以 merge：<br />
+$$
+W&#x27; = W_0 + BA
+$$<br />
+推理时：<br />
+$$
+h = W&#x27;x
+$$<br />
+因此不需要额外的 LoRA 推理层。</p>
+
+<h2>6. 结论</h2>
+
+<p>LoRA <strong>不是分解 pretrained weight $W_0$</strong>，而是对任务更新量 $\Delta W$ 做低秩表示：<br />
+$$
+\Delta W = BA
+$$<br />
+核心思想：$W_0$ 很复杂，不代表新任务需要的 $\Delta W$ 也必须很复杂。</p>

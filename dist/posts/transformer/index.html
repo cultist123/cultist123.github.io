@@ -1,0 +1,263 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="个人主页、项目与学习笔记"><title>Transformer · Nathen</title><link rel="stylesheet" href="/style.css?v=c152e4bd3b46"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231769aa'/%3E%3Cpath d='M9 8h14v16H9zM12 13h8M12 17h8' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"></head><body><div class="shell"><header class="header"><a class="name" href="/">Nathen</a><nav class="nav" aria-label="主导航"><a href="/">首页</a><a href="/blogs/?v=c152e4bd3b46" aria-current="page">博客</a><a href="/projects/?v=c152e4bd3b46">项目</a></nav></header><main id="main-content"><a class="back" href="/blogs/?v=c152e4bd3b46#ai">返回博客</a><p class="eyebrow">AI · Models</p><h1>Transformer</h1><p class="lead">2026 年 10 月 26 日</p><div class="course-layout"><aside id="course-navigation" class="course-sidebar"><div class="sidebar-heading">本文目录</div><nav aria-label="本文目录"><a class="toc-level-3" href="#section-1">1. 整体结构</a><a class="toc-level-4" href="#section-2">1.1 输入表示</a><a class="toc-level-3" href="#section-3">2. Self-Attention</a><a class="toc-level-3" href="#section-4">3. Multi-Head Attention</a><a class="toc-level-3" href="#section-5">4. Mask</a><a class="toc-level-3" href="#section-6">5. FFN（MLP）</a><a class="toc-level-3" href="#section-7">6. 残差 + Normalization</a><a class="toc-level-4" href="#section-8">6.1 残差</a><a class="toc-level-4" href="#section-9">6.2 Batch Normalization</a><a class="toc-level-4" href="#section-10">6.3 Layer Normalization</a><a class="toc-level-4" href="#section-11">6.4 Post-LN vs Pre-LN</a><a class="toc-level-3" href="#section-12">7. Dropout</a><a class="toc-level-3" href="#section-13">8. 三种架构</a><a class="toc-level-3" href="#section-14">9. 和 CNN / RNN 对比</a><a class="toc-level-3" href="#section-15">一句话总结</a></nav><nav class="local-toc" aria-label="相关文章"><strong>AI 与模型</strong><a href="/posts/transformer/?v=c152e4bd3b46" aria-current="page">Transformer</a><a href="/posts/lora/?v=c152e4bd3b46">LoRA：低秩适配</a><a href="/blogs/?v=c152e4bd3b46#ai">返回博客</a></nav></aside><div class="course-main"><article class="prose course-note"><h2 id="section-1">1. 整体结构</h2>
+
+<p><img src="/images/ai/image-20261014230652042.png" alt="image-20261014230652042" style="zoom:50%;" /></p>
+
+<h3 id="section-2">1.1 输入表示</h3>
+
+<ul>
+<li>一个句子 = <strong>$n \times d$ 的矩阵</strong>：$n$ = 序列长度（token 个数，行数），$d$ = 向量长度（$d_{model} = 512$，列数）</li>
+<li>每个词的向量长度都一样，靠数值不同区分意思；用 512 个数是为了同时描述含义的多个方面</li>
+<li><strong>位置编码</strong>：attention 本身不知道词的顺序，打乱词序结果不变，所以要把位置编码<strong>加</strong>到词向量上（相加，不是拼接）</li>
+</ul>
+
+<h2 id="section-3">2. Self-Attention</h2>
+
+<p><img src="/images/ai/image-20261014230800296.png" alt="image-20261014230800296" style="zoom:50%;" /><br />
+$$
+\text{Attention}(Q,K,V)=\text{softmax}\left(\frac{QK^T}{\sqrt{d_k}}\right)V
+$$</p>
+
+<ul>
+<li>$Q = XW_Q,\ K = XW_K,\ V = XW_V$：把词向量投影到"适合比较相似度"的空间</li>
+<li><strong>维度</strong>：$Q$ 是 $n \times d_k$，$K$ 是 $m \times d_k$，$V$ 是 $m \times d_v$
+<ul>
+<li>$QK^T$：$(n \times d_k)(d_k \times m) = n \times m$ <strong>打分表</strong>，第 $i$ 行 = 第 $i$ 个 query 对所有 key 的相似度</li>
+<li>乘 $V$：$(n \times m)(m \times d_v) = n \times d_v$</li>
+<li>self-attention 时 $n = m$；cross-attention 时 $n \neq m$</li>
+</ul></li>
+<li><strong>除以 $\sqrt{d_k}$</strong>：$d_k$ 越大点积方差越大，softmax 会接近 one-hot，梯度很小；缩放后保持稳定</li>
+<li><strong>本质</strong>：对 $V$ 做加权平均，负责<strong>词与词之间交流信息</strong></li>
+</ul>
+
+<blockquote>
+  <p><strong>为什么 K 和 V 行数必须相同，Q 和 K 列数必须相同？</strong><br />
+  K、V 是一一配对的（每个 key 对应一个 value），所以行数都是 $m$；Q 和 K 要做点积，所以列数都是 $d_k$。$d_v$ 可以和 $d_k$ 不同。</p>
+</blockquote>
+
+<h2 id="section-4">3. Multi-Head Attention</h2>
+
+<p><img src="/images/ai/image-20261014230924284.png" alt="image-20261014230924284" style="zoom:50%;" /></p>
+
+<ul>
+<li>$d_{model} = 512$，$h = 8$ 个头，每个头 $d_k = d_v = 512 / 8 = 64$</li>
+<li>三步：<strong>投影到 8 组 Q/K/V → 每个头各自算 attention → 拼接后乘 $W_O$</strong></li>
+<li>总计算量和单头差不多（每个头维度变小了）</li>
+<li>作用：不同的头关注不同类型的关系（比如一个头看指代，一个头看语法）</li>
+</ul>
+
+<blockquote>
+  <p>$W_O$是一个可以学习的参数,所以attention层总共有$W_Q,W_K, W_V, W_O$四个可以学习的参数</p>
+</blockquote>
+
+<h2 id="section-5">4. Mask</h2>
+
+<ul>
+<li><strong>Causal mask</strong>：点积照常算全部，在 softmax <strong>之前</strong>把未来位置设为 $-\infty$，softmax 后权重为 0
+<ul>
+<li>主要为了<strong>训练</strong>：teacher forcing 把整句一次输入、并行计算，mask 保证每个位置看不到后面的答案</li>
+<li><strong>推理</strong>时自回归一个个生成，未来本来就不存在，用 KV cache 存之前的 K、V</li>
+</ul></li>
+<li><strong>Padding mask</strong>：把补齐用的 pad 位置屏蔽掉</li>
+</ul>
+
+<table>
+<thead>
+<tr>
+  <th>Attention</th>
+  <th>Causal mask</th>
+  <th>Padding mask</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>Encoder self-attention</td>
+  <td>✗</td>
+  <td>✓</td>
+</tr>
+<tr>
+  <td>Decoder masked self-attention</td>
+  <td>✓</td>
+  <td>✓</td>
+</tr>
+<tr>
+  <td>Cross-attention</td>
+  <td>✗</td>
+  <td>✓</td>
+</tr>
+</tbody>
+</table>
+
+<h2 id="section-6">5. FFN（MLP）</h2>
+
+<p>$$\text{FFN}(x) = \text{ReLU}(xW_1 + b_1)W_2 + b_2 \qquad 512 \to 2048 \to 512$$</p>
+
+<ul>
+<li><strong>逐词独立计算，所有位置共用同一套参数</strong>（同一个函数作用在每个词上，可以处理任意长度）</li>
+<li>作用：attention 只是加权平均（基本线性），FFN 用非线性把收集来的信息<strong>组合成新特征</strong>
+<ul>
+<li>例：attention 后 "it" 带有"动物"和"累了"的信息，FFN 的某个神经元组合出"累了的动物"</li>
+</ul></li>
+<li>先升到 2048 维：有更多空间组合特征；再降回 512：和残差对得上</li>
+</ul>
+
+<table>
+<thead>
+<tr>
+  <th></th>
+  <th>乘法形式</th>
+  <th>混合的是什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>Attention</td>
+  <td>$A \cdot V$（乘在左边）</td>
+  <td>不同词之间 → 交流</td>
+</tr>
+<tr>
+  <td>FFN</td>
+  <td>$X \cdot W$（乘在右边）</td>
+  <td>一个词内部的各个特征 → 自己加工</td>
+</tr>
+</tbody>
+</table>
+
+<blockquote>
+  <p><strong>追问：只有 attention、去掉 FFN 会怎样？</strong><br />
+  每层只是在词之间做加权平均，缺少非线性加工，表达能力大幅下降。可以理解为：attention 是开会交流，FFN 是会后各自消化思考。</p>
+</blockquote>
+
+<h2 id="section-7">6. 残差 + Normalization</h2>
+
+<h3 id="section-8">6.1 残差</h3>
+
+<ul>
+<li>每个子层：$\text{LayerNorm}(x + \text{Sublayer}(x))$</li>
+<li>$\frac{\partial y}{\partial x} = I + \frac{\partial F}{\partial x}$，梯度至少有 $I$ 这条通路，深层也能训练</li>
+</ul>
+
+<h3 id="section-9">6.2 Batch Normalization</h3>
+
+<ul>
+<li>BatchNorm 通常对<strong>每个 feature</strong>，在 <strong>batch 维度</strong>上统计 mean/std</li>
+<li>同样有可学习的 $\gamma$、$\beta$ 做 scale 和 shift</li>
+<li>依赖 batch：batch 小时统计量不准，<strong>batch = 1 时每个 feature 都被压成 0</strong></li>
+<li>训练和推理不一致：推理时要用训练中累计的 running mean / running var</li>
+</ul>
+
+<h3 id="section-10">6.3 Layer Normalization</h3>
+
+<p>LayerNorm 对<strong>每个 token 自己的 $D$ 个 feature</strong> 做 normalization</p>
+
+<ul>
+<li>$h_i = [h_{i1}, h_{i2}, \dots, h_{iD}]$，代表某一层输出的第 $i$ 个 hidden vector</li>
+<li>$\mu_i = \text{mean}(h_i)$，$\sigma_i = \text{std}(h_i)$，然后做 normalize：$z_i = \frac{h_i - \mu_i}{\sqrt{\sigma_i^2 + \epsilon}}$（$\epsilon$ 是很小的数，防止除以 0）</li>
+<li>最后再做 learnable 的 scale 和 shift：$y_i = \gamma \odot z_i + \beta$
+<ul>
+<li>$\gamma$ 和 $\beta$ 都是 $D$ 维，$\odot$ 表示 element-wise multiplication，意思是<strong>每个维度都有自己的 scale 和 shift</strong></li>
+<li>作用：normalize 后分布被强制成均值 0、方差 1，可能限制表达能力；$\gamma$、$\beta$ 让模型可以自己学回需要的尺度和偏移</li>
+</ul></li>
+<li>不依赖 batch，训练和推理计算方式完全一样</li>
+</ul>
+
+<table>
+<thead>
+<tr>
+  <th></th>
+  <th>BatchNorm</th>
+  <th>LayerNorm</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>统计范围</td>
+  <td>同一个 feature，跨 batch 里的样本</td>
+  <td>同一个 token，跨自己的 $D$ 个 feature</td>
+</tr>
+<tr>
+  <td>依赖 batch</td>
+  <td>是</td>
+  <td>否</td>
+</tr>
+<tr>
+  <td>$\gamma$、$\beta$ 维度</td>
+  <td>每个 feature 一个</td>
+  <td>$D$ 维</td>
+</tr>
+<tr>
+  <td>常用于</td>
+  <td>CNN</td>
+  <td>Transformer、RNN</td>
+</tr>
+</tbody>
+</table>
+
+<blockquote>
+  <p><strong>追问：为什么 Transformer 用 LN 不用 BN？</strong><br />
+  句子长度不一（有 padding），batch 也常常很小，BN 的统计量不稳定；LN 每个 token 自己算，不受 batch 和序列长度影响，训练推理一致。</p>
+</blockquote>
+
+<h3 id="section-11">6.4 Post-LN vs Pre-LN</h3>
+
+<ul>
+<li>原版是 <strong>Post-LN</strong>：先加残差再 LN，$\text{LN}(x + F(x))$</li>
+<li>现在大模型多用 <strong>Pre-LN</strong>：先 LN 再进子层，$x + F(\text{LN}(x))$，残差通路更干净，训练更稳定</li>
+</ul>
+
+<h2 id="section-12">7. Dropout</h2>
+
+<ul>
+<li>原版 $p = 0.1$，用在三处：attention 的 softmax 权重之后、每个子层输出（加残差之前）、embedding + 位置编码之后</li>
+</ul>
+
+<h2 id="section-13">8. 三种架构</h2>
+
+<table>
+<thead>
+<tr>
+  <th>架构</th>
+  <th>代表</th>
+  <th>特点</th>
+  <th>适合</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>Encoder-only</td>
+  <td>BERT</td>
+  <td>双向看全句</td>
+  <td>理解：分类、抽取</td>
+</tr>
+<tr>
+  <td>Decoder-only</td>
+  <td>GPT</td>
+  <td>causal mask，只看前文</td>
+  <td>生成</td>
+</tr>
+<tr>
+  <td>Encoder-Decoder</td>
+  <td>T5、原版 Transformer</td>
+  <td>输入输出长度/形式不同</td>
+  <td>翻译、摘要</td>
+</tr>
+</tbody>
+</table>
+
+<h2 id="section-14">9. 和 CNN / RNN 对比</h2>
+
+<ul>
+<li><strong>归纳偏置</strong>：CNN 假设局部性 + 平移等变，RNN 假设顺序性；Transformer 假设很少 → 更灵活、上限高，但需要更多数据</li>
+<li><strong>并行</strong>：RNN 必须一步步算；Transformer 所有位置可以并行</li>
+<li><strong>长距离依赖</strong>：任意两个词一步直接相连，不用一层层传递</li>
+<li><strong>代价</strong>：attention 复杂度 $O(n^2 \cdot d)$，序列长了显存和计算量增长很快</li>
+</ul>
+
+<blockquote>
+  <p><strong>追问：为什么 ViT 小数据不如 CNN，大数据反而更好？</strong><br />
+  CNN 自带适合图像的假设，数据少时也能学好；ViT 要从数据里自己学这些规律，数据少学不出来，数据多时不受假设限制，效果反超。</p>
+</blockquote>
+
+<h2 id="section-15">一句话总结</h2>
+
+<p>Transformer = <strong>attention 负责词之间交流 + FFN 负责每个词自己加工</strong>，用残差和 LayerNorm 保证能堆得很深；完全并行、能直接建模长距离依赖，代价是 $O(n^2)$ 复杂度和对数据量的需求。</p>
+</article></div></div><button class="course-menu-button" aria-controls="course-navigation" aria-expanded="false">☰ 目录</button><script>const courseMenu=document.querySelector('.course-menu-button');const courseSidebar=document.querySelector('.course-sidebar');courseMenu.addEventListener('click',()=>{const open=courseMenu.getAttribute('aria-expanded')!=='true';courseMenu.setAttribute('aria-expanded',String(open));courseSidebar.classList.toggle('is-open',open);});courseSidebar.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}));document.addEventListener('keydown',e=>{if(e.key==='Escape'){courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}});</script><script>window.MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js"></script></main><footer class="footer"><span>© 2026 Nathen</span><span>学习、构建与记录。</span></footer></div></body></html>
