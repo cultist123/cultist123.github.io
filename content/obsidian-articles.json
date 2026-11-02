@@ -1,0 +1,52 @@
+[
+  {
+    "slug": "rmsnorm",
+    "title": "LayerNorm 与 RMSNorm：原理与实现",
+    "date": "2026-11-01"
+  },
+  {
+    "slug": "rope-yarn",
+    "title": "RoPE 与 YaRN：位置编码与长度外推",
+    "date": "2026-11-01"
+  },
+  {
+    "slug": "minimind",
+    "title": "MiniMind：模型实现与张量数据流",
+    "date": "2026-11-01"
+  },
+  {
+    "slug": "sequence-models",
+    "title": "序列模型：N 元语法、RNN 与困惑度",
+    "date": "2026-11-01"
+  },
+  {
+    "slug": "padding-mask",
+    "title": "Padding Mask：填充掩码与因果掩码",
+    "date": "2026-11-01"
+  },
+  {
+    "slug": "policy-gradient",
+    "title": "Policy Gradient：推导、Baseline 与训练流程",
+    "date": "2026-11-01"
+  },
+  {
+    "slug": "ppo",
+    "title": "PPO：重要性采样、约束与 Clip",
+    "date": "2026-11-01"
+  },
+  {
+    "slug": "actor-critic",
+    "title": "Actor-Critic：从策略梯度到 A2C 与 A3C",
+    "date": "2026-11-01"
+  },
+  {
+    "slug": "grpo",
+    "title": "GRPO：目标函数与组内优势估计",
+    "date": "2026-11-01"
+  },
+  {
+    "slug": "gpt-bert",
+    "title": "GPT 与 BERT：预训练、微调与 Prompt",
+    "date": "2026-11-01"
+  }
+]

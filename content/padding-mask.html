@@ -1,0 +1,23 @@
+<h3>Padding Mask（填充掩码）</h3>
+
+<p><strong>作用</strong>：GPU 要求输入是规整的矩阵，句子长短不一时用 <code>[PAD]</code> 补齐。Padding Mask 用来告诉模型哪些是真词、哪些是补位的 PAD，计算时忽略 PAD。<br />
+<strong>例子</strong>：batch<em>size = 2，seq</em>len = 4<br />
+- 句子 A：[我, 爱, 你, PAD]<br />
+- 句子 B：[机, 器, 学, 习]<br />
+<strong>掩码</strong>（1 保留，0 忽略）：<br />
+- 句子 A：[1, 1, 1, 0]<br />
+- 句子 B：[1, 1, 1, 1]<br />
+<strong>作用到注意力分数上</strong>：<br />
+把 0 的位置换成 -inf，1 的位置换成 0，再加到分数矩阵 [batch, n<em>head, seq</em>len, seq_len] 上（广播）。以句子 A 为例，加上的掩码为：<br />
+        我    爱    你    PAD<br />
+  我   [ 0,   0,   0,  -inf ]<br />
+  爱   [ 0,   0,   0,  -inf ]<br />
+  你   [ 0,   0,   0,  -inf ]<br />
+  PAD  [ 0,   0,   0,  -inf ]<br />
+<strong>原理</strong>：PAD 所在列的分数变为 -inf，softmax 后权重为 0，加权求和时完全忽略 PAD，不会污染真实词的语义。<br />
+<strong>与因果掩码的关系</strong>：两者都是加到分数上的 -inf 掩码，可以相加后一起使用；因果掩码挡住"后面的词"，Padding Mask 挡住"PAD 列"。</p>
+
+<p>在实际的 GPT 或 LLaMA 解码器中，掩码是上述两种类型<strong>相加</strong>的：<br />
+1. 先生成一个下三角矩阵（因果掩码）。<br />
+2. 再根据 <code>[PAD]</code> 的位置，把对应行/列也置为 <code>-inf</code>。<br />
+最终形成的矩阵，既保证了<strong>不偷看未来</strong>，又保证了<strong>不理会 PAD</strong>。</p>

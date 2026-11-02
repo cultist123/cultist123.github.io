@@ -3,9 +3,10 @@ import html
 import re
 import hashlib
 from course_notes import topic_rows
+from obsidian_notes import rows as obsidian_rows
 root=Path(__file__).parent/'dist'
 # One revision controls page links and styles across every generated page.
-site_revision=hashlib.sha256((root/'style.css').read_bytes()+(Path(__file__).parent/'content/stack.md').read_bytes()+(Path(__file__).parent/'content/heap.md').read_bytes()+(Path(__file__).parent/'content/queue.md').read_bytes()+(Path(__file__).parent/'course_notes.py').read_bytes()+(Path(__file__).parent/'content/home.html').read_bytes()+(Path(__file__).parent/'content/transformer.md').read_bytes()+(Path(__file__).parent/'content/lora.md').read_bytes()).hexdigest()[:12]
+site_revision=hashlib.sha256((root/'style.css').read_bytes()+(Path(__file__).parent/'content/stack.md').read_bytes()+(Path(__file__).parent/'content/heap.md').read_bytes()+(Path(__file__).parent/'content/queue.md').read_bytes()+(Path(__file__).parent/'course_notes.py').read_bytes()+(Path(__file__).parent/'content/home.html').read_bytes()+(Path(__file__).parent/'content/transformer.md').read_bytes()+(Path(__file__).parent/'content/lora.md').read_bytes()+(Path(__file__).parent/'content/obsidian-articles.json').read_bytes()).hexdigest()[:12]
 def page(title,active,body,path):
     nav=''.join(f'<a href="{url}"'+(' aria-current="page"' if key==active else '')+f'>{label}</a>' for key,label,url in [('home','首页','/'),('blogs','博客','/blogs/'),('projects','项目','/projects/')])
     text=f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="个人主页、项目与学习笔记"><title>{title} · Nathen</title><link rel="stylesheet" href="/style.css?v={site_revision}"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231769aa'/%3E%3Cpath d='M9 8h14v16H9zM12 13h8M12 17h8' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"></head><body><div class="shell"><header class="header"><a class="name" href="/">Nathen</a><nav class="nav" aria-label="主导航">{nav}</nav></header><main id="main-content">{body}</main><footer class="footer"><span>© 2026 Nathen</span><span>学习、构建与记录。</span></footer></div></body></html>'''
@@ -31,6 +32,8 @@ for cat,label in [('systems','分布式系统'),('algorithms','算法'),('ai','A
         rows='<article class="row"><time datetime="2026-10-24">2026 年 10 月 24 日</time><h3><a href="/posts/queue/">队列 · 文章索引</a></h3></article>'+rows
     if cat=='ai':
         rows=''.join(f'<article class="row"><time datetime="2026-10-26">2026 年 10 月 26 日</time><h3><a href="/posts/{slug}/">{title}</a></h3></article>' for slug,title in [('transformer','Transformer'),('lora','LoRA：低秩适配')])
+    if cat=='ai':
+        rows=obsidian_rows()+rows
     groups+=f'<section class="group" id="{cat}"><h2>{label}</h2><div class="list">{rows}</div></section>'
 page('博客','blogs',f'<p class="eyebrow">Writing & notes</p><h1>博客</h1><p class="lead">记录学习、项目与思考。</p><div class="directory"><nav class="categories" aria-label="文章分类"><span>文章分类</span>{cats}</nav><div>{groups}</div></div>','blogs/index.html')
 page('首页','home',(Path(__file__).parent/'content/home.html').read_text(),'index.html')
@@ -59,3 +62,6 @@ build_queue_notes(page)
 
 from ai_notes import build as build_ai_notes
 build_ai_notes(page)
+
+from obsidian_notes import build as build_obsidian_notes
+build_obsidian_notes(page)

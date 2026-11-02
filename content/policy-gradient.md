@@ -1,0 +1,188 @@
+# Policy Gradient：推导、Baseline 与训练流程
+
+## 策略梯度基础
+
+ml入门介绍
+对标记很困难,或者人类也不知道答案是什么的时候可以用强化学习,机器学习就是找一个function,强化学习也是找一个function,action=f(Observation)
+<img src="/images/obsidian/ceab0337ba08.png" alt="Pasted image 20261030130105.png" width="278" />
+1. 采取sample,而不是最大概率,policy network(actor)
+2. define loss, reward是每步的奖励, returen是整场游戏的sum(reward),这个R就是我们想最大化的东西
+3. optimization
+<img src="/images/obsidian/f8d60c0c8d94.png" alt="Pasted image 20261030132119.png" width="264" />
+policy gradient
+ $\bar{R}_\theta = \sum_\tau R(\tau)\,P(\tau|\theta)$
+"每种可能的局的得分 × 这种局出现的概率"，再对所有可能的局求和，也就是加权平均。
+**单个变量：导数**
+**多个变量：梯度**
+神经网络的参数 θ 其实是一大堆数，θ = (w₁, w₂, …, wₖ)。对每个参数分别求偏导，排成一个向量，就是梯度：
+
+$$\nabla f(\theta) = \left(\frac{\partial f}{\partial w_1}, \frac{\partial f}{\partial w_2}, \dots, \frac{\partial f}{\partial w_k}\right)$$
+每一项告诉你"单独调这个参数，f 会怎么变"。整个向量指向的是 **f 上升最快的方向**。
+R(t)是不可微或者不知道function的也没关系,直接得到actor的输出就行,黑盒
+### 1. 强化学习的三个组成部分
+<img src="/images/obsidian/16d71786f6fe.png" alt="Screenshot 2026-10-30 at 14.37.29.png" width="392" />
+- **Actor**：做决策的那个"玩家"
+- **Environment（环境）**：比如游戏本身
+- **Reward Function（奖励函数）**：规定做什么事得多少分
+其中环境和奖励函数是事先给定、我们没法控制的，唯一能调的是 Actor：通过调整它的 policy 来让得到的奖励变高。
+---
+### 2. Actor 的 Policy
+<img src="/images/obsidian/1e79dd113b8c.png" alt="Screenshot 2026-10-30 at 14.40.12.png" width="386" />
+Policy $\pi$ 决定 actor 怎么行动：输入当前看到的东西，输出该做什么动作。用神经网络实现时，网络的参数就是 θ。
+- **输入**：机器当前看到的画面（state），可以是矩阵或向量
+- **输出**：每个动作的概率。假设能做的动作有三个，网络就输出这三个动作各自的概率
+**重点**：输出的是概率，actor 再按这个概率去随机选动作。所以同一个画面，每次选的动作可能不同，这就是"actor 的随机性"的来源。
+---
+### 3. 玩一局游戏：Episode 与 Trajectory
+<img src="/images/obsidian/f7c2f5c8e80b.png" alt="Pasted image 20261030143846.png" width="315" />
+<img src="/images/obsidian/c3999ae4ca47.png" alt="Screenshot 2026-10-30 at 14.25.19.png" width="402" />
+过程是循环的：看到画面 $s_1$ → 选动作 $a_1$ → 拿到奖励 $r_1$ → 看到新画面 $s_2$ → 选动作 $a_2$ → …… 直到游戏结束。
+- 打完一整局叫一个 **episode**
+- 把这一局所有的状态和动作按顺序串起来，叫 **trajectory（轨迹）**：
+$$\tau = \{s_1, a_1, s_2, a_2, \dots, s_T, a_T\}$$
+- 这一局的总奖励：
+$$R(\tau) = \sum_{t=1}^{T} r_t$$
+可以把整个过程看成环境和 actor 来回传球：环境的输出作为 actor 的输入，actor 的输出又作为环境的输入，一直到收到结束信号。
+---
+### 4. 一条轨迹出现的概率
+<img src="/images/obsidian/a0d62e1d7ffa.png" alt="Screenshot 2026-10-30 at 14.29.39.png" width="337" />
+给定参数 θ，某一条轨迹出现的概率是：
+$$p_\theta(\tau) = p(s_1),p_\theta(a_1|s_1),p(s_2|s_1,a_1),p_\theta(a_2|s_2),p(s_3|s_2,a_2)\cdots$$
+$$= p(s_1)\prod_{t=1}^{T} p_\theta(a_t|s_t)p(s_{t+1}|s_t,a_t)$$
+逐项理解：
+
+| 项                     | 含义                           | 跟 θ 有关吗        |
+| --------------------- | ---------------------------- | -------------- |
+| $p(s_1)$              | 游戏开局出现这个画面的概率                | 无关，游戏决定        |
+| $p_\theta(a_t\|s_t)$  | actor 看到 $s_t$ 后选 $a_t$ 的概率  | **有关**，就是网络的输出 |
+| $p(s_{t+1}\|s_t,a_t)$ | 做了 $a_t$ 后游戏变成 $s_{t+1}$ 的概率 | 无关，游戏决定        |
+**关键结论**：整条轨迹的概率里，只有 actor 那部分是我们能控制的。这一点在后面求梯度时会派上大用场。
+
+---
+### 5. 目标：期望奖励 $\bar{R}_\theta$
+<img src="/images/obsidian/cbcd4e4cd5f8.png" alt="Screenshot 2026-10-30 at 14.36.00.png" width="334" />
+因为 actor 和游戏都有随机性，$R(\tau)$ 是一个随机变量，每局都不一样。没法直接拿它来优化，能计算的只有它的期望值：
+$$\bar{R}_\theta = \sum_\tau R(\tau)p_\theta(\tau) = E_{\tau \sim p_\theta(\tau)}\big[R(\tau)\big]$$
+**两种理解方式**：
+1. **加权平均**：列出所有可能的轨迹，每条的总分乘上它出现的概率，再加起来
+2. **采样平均**：从 $p_\theta(\tau)$ 这个分布里抽轨迹，看总分平均是多少
+$E_{\tau \sim p_\theta(\tau)}[\cdot]$ 这个写法读作"τ 从分布 $p_\theta(\tau)$ 中抽取时，括号里东西的期望"。
+**实际计算**用采样近似：用 actor 玩 N 局，取平均：
+$$\bar{R}_\theta \approx \frac{1}{N}\sum_{n=1}^{N} R(\tau^n)$$
+概率大的轨迹被抽中的次数自然多，所以概率已经"藏"在采样结果里了。
+
+---
+### 6. Policy Gradient 推导（核心）
+<img src="/images/obsidian/1d80ef9bf0f3.png" alt="Screenshot 2026-10-30 at 14.30.46.png" width="357" />
+目标是让 $\bar{R}_\theta$ 越大越好，所以用**梯度上升**：
+$$\theta \leftarrow \theta + \eta,\nabla \bar{R}_\theta$$
+跟梯度下降相比，只是更新参数时把减号改成了加号。问题是 $\nabla \bar{R}_\theta$ 怎么求。下面一步步推。
+**第 1 步：把梯度放进求和里**
+$$\nabla \bar{R}_\theta = \sum_\tau R(\tau)\nabla p_\theta(\tau)$$
+$R(\tau)$ 是游戏给的分数，跟 θ 无关，所以梯度只作用在 $p_\theta(\tau)$ 上。这也意味着 $R(\tau)$ 不需要可微，哪怕奖励是个黑盒也没关系。
+**第 2 步：乘一个再除一个**
+
+$$= \sum_\tau R(\tau)p_\theta(\tau)\frac{\nabla p_\theta(\tau)}{p_\theta(\tau)}$$
+目的是凑出 $p_\theta(\tau)$，让式子重新变回"期望"的形式。
+**第 3 步：用 log 的求导技巧**
+由于 $\nabla \log f(x) = \dfrac{\nabla f(x)}{f(x)}$，所以 $\dfrac{\nabla p_\theta(\tau)}{p_\theta(\tau)} = \nabla \log p_\theta(\tau)$：
+$$= \sum_\tau R(\tau)p_\theta(\tau)\nabla \log p_\theta(\tau)$$
+**第 4 步：写成期望**
+$$= E_{\tau \sim p_\theta(\tau)}\big[R(\tau)\nabla \log p_\theta(\tau)\big]$$
+**第 5 步：用采样近似**
+穷举所有轨迹不可能，所以玩 N 局取平均：
+$$\approx \frac{1}{N}\sum_{n=1}^{N} R(\tau^n)\nabla \log p_\theta(\tau^n)$$
+**第 6 步：展开 $\nabla \log p_\theta(\tau)$**
+把第 4 节的连乘取 log，乘法变加法：
+$$\log p_\theta(\tau) = \log p(s_1) + \sum_{t=1}^{T}\big[\log p_\theta(a_t|s_t) + \log p(s_{t+1}|s_t,a_t)\big]$$
+对 θ 求梯度时，跟 θ 无关的环境项全部变成 0，只剩：
+$$\nabla \log p_\theta(\tau) = \sum_{t=1}^{T}\nabla \log p_\theta(a_t|s_t)$$
+**第 7 步：最终公式**
+$$\boxed{\nabla \bar{R}_\theta \approx \frac{1}{N}\sum_{n=1}^{N}\sum_{t=1}^{T_n} R(\tau^n)\nabla \log p_\theta(a_t^n|s_t^n)}$$
+**这个公式好在哪**：我们完全不需要知道游戏内部的规律 $p(s_{t+1}|s_t,a_t)$，只要能让 actor 去玩、记录下它做了什么、拿了多少分，就能算出梯度。
+**直观意思**：每一对 $(s_t^n, a_t^n)$ 都是某局中某个时刻"看到什么、做了什么"。如果这对数据所在的那局总奖励高，就提高它出现的概率，反之就降低。
+
+
+---
+
+## 训练流程、Baseline 与 Credit Assignment
+
+### 1. 实际训练流程
+<img src="/images/obsidian/540fa0e3924d.png" alt="Pasted image 20261031135620.png" width="356" />
+$$ \nabla \bar{R}_\theta=\dfrac{1}{N} \sum^N_{n=1} \sum^{T_n}_{t=1} R(\tau^n) \nabla \log p_\theta(a^n_t \vert s^n_t) $$
+$$ \theta \leftarrow \theta + \eta \nabla \bar{R}_\theta $$
+1. **收集数据**：用当前的 actor 去玩 N 局，记录每局里所有的 $(s_t^n, a_t^n)$，以及这局的总分 $R(\tau^n)$
+2. **算梯度**：对每个 $(s_t^n, a_t^n)$ 算 $\log p_\theta(a_t^n|s_t^n)$ 的梯度，乘上权重 $R(\tau^n)$，再求平均
+3. **更新参数**：$\theta \leftarrow \theta + \eta,\nabla \bar{R}_\theta$
+4. **回到第 1 步**，用新的 actor 重新收集数据
+**注意**：一般的 Policy Gradient 收集到的数据只用一次，下次更新时不会再用。因为参数更新后 actor 变了，旧数据是旧 actor 玩出来的，不再符合新 actor 的分布。这样做很费时间，后面的 PPO 就是为了解决这个问题。
+---
+### 2. 实现技巧：把它当成分类问题
+<img src="/images/obsidian/9c6dbf7d53ef.png" alt="Pasted image 20261031135908.png" width="345" />
+可以把 actor 看成一个分类器：输入画面，输出"该做哪个动作"。但目标不是识别画面里有什么，而是决定看到这个画面该怎么做。
+**普通分类问题**：最小化 cross-entropy，等价于最大化 log likelihood：
+$$\frac{1}{N}\sum_{n=1}^{N}\sum_{t=1}^{T_n}\log p_\theta(a_t^n|s_t^n)$$
+**强化学习**：只是在前面多乘了一个权重：
+$$\frac{1}{N}\sum_{n=1}^{N}\sum_{t=1}^{T_n} R(\tau^n)\log p_\theta(a_t^n|s_t^n)$$
+所以实现时，把收集到的 $(s, a)$ 当训练数据、$a$ 当标签，每笔数据带一个权重 $R(\tau^n)$，用现成的分类训练代码就能跑。
+**特别注意**：这个权重 $R(\tau^n)$ 是整局游戏的总奖励，而不是这一步当下拿到的奖励。
+
+---
+### 3. Tip 1：加 Baseline
+<img src="/images/obsidian/1f1d13aad5c2.png" alt="Pasted image 20261031140605.png" width="224" />
+<img src="/images/obsidian/f53f7e93b8c5.png" alt="Pasted image 20261031140548.png" width="241" />
+**问题**：很多游戏的奖励全是正的（比如只有加分，没有扣分）。这时 $R(\tau^n)$ 永远大于 0，公式会让**每一个被采样到的动作**的概率都上升。
+理论上这没事：权重大的上升多、权重小的上升少，概率总和是 1，相对来说权重小的就下降了。
+**但实际上是采样的**：有些动作可能从来没被采样到，它的概率就会因此下降，但它可能其实是个好动作，只是运气不好一直没被抽到。
+**解决办法**：减掉一个 baseline b：
+$$\nabla \bar{R}_\theta \approx \frac{1}{N}\sum_{n=1}^{N}\sum_{t=1}^{T_n}\big(R(\tau^n) - b\big),\nabla \log p_\theta(a_t^n|s_t^n)$$
+
+这样权重就有正有负，b 可以取总奖励的平均值。
+**直观意思**：比平均水平好的局才鼓励，比平均差的局就抑制。
+
+---
+### 4. Tip 2：给每个动作合适的功劳（Credit Assignment）
+**问题**：原公式里，同一局所有动作的权重都是 $R(\tau^n) - b$，一模一样。这不公平：一局赢了不代表每一步都下得好，一局输了也不代表每一步都下得差。
+**例子**（每局只有 3 步）：
+
+|第 1 步奖励|第 2 步奖励|第 3 步奖励|总分|
+|---|---|---|---|---|
+|左边那局|+5|0|−2|+3|
+|右边那局|−5|0|−2|−7|
+按原公式，左边三个动作权重都是 +3，右边都是 −7。但左边的得分其实全来自第 1 步，第 2 步可能还导致了后面的 −2；右边则相反。
+**改进 1：只算这一步之后的奖励**
+<img src="/images/obsidian/5718d3f01f91.png" alt="Pasted image 20261031141134.png" width="253" />
+一个动作只能影响它之后发生的事，不能影响之前已经拿到的分。所以权重改成"从第 t 步到结束的奖励总和"：
+$$\nabla \bar{R}_\theta \approx \frac{1}{N}\sum_{n=1}^{N}\sum_{t=1}^{T_n}\Big(\sum_{t'=t}^{T_n} r_{t'}^n - b\Big)\nabla \log p_\theta(a_t^n|s_t^n)$$
+改完后的权重：
+
+|第 1 步|第 2 步|第 3 步|
+|---|---|---|---|
+|左边那局|+3|−2|−2|
+|右边那局|−7|−2|−2|
+现在第 2、3 步都被正确地判为"不好"了，不管它们在哪一局。
+**改进 2：加折扣因子 γ**
+<img src="/images/obsidian/51cbcd338142.png" alt="Pasted image 20261031141255.png" width="313" />
+一个动作对很久以后的影响应该越来越小。所以给后面的奖励乘上 $\gamma^{t'-t}$，γ 是小于 1 的数，比如 0.9，可以理解为每往后一步就打一次九折。
+$$\nabla \bar{R}_\theta \approx \frac{1}{N}\sum_{n=1}^{N}\sum_{t=1}^{T_n}\Big(\sum_{t'=t}^{T_n}\gamma^{t'-t} r_{t'}^n - b\Big)\nabla \log p_\theta(a_t^n|s_t^n)$$
+比如 γ = 0.9 时，紧接着的下一步奖励算 0.9 倍，再下一步算 0.81 倍，以此类推。
+
+---
+### 5 . Advantage Function：统一写法
+<img src="/images/obsidian/51cbcd338142.png" alt="Pasted image 20261031141255.png" width="291" />
+把括号里那一整项统一记作 $A^\theta(s_t, a_t)$，叫 **Advantage Function（优势函数）**：
+$$\nabla \bar{R}_\theta \approx \frac{1}{N}\sum_{n=1}^{N}\sum_{t=1}^{T_n} A^\theta(s_t^n, a_t^n),\nabla \log p_\theta(a_t^n|s_t^n)$$
+- **含义**：在状态 $s_t$ 下做动作 $a_t$，相比其他可能的动作，到底好多少
+- **上标 θ**：表示这是用参数为 θ 的 actor 去和环境互动得到的
+- 这个值通常可以用另一个神经网络来估计，也就是 critic，后面的课程会讲。
+---
+### 6. 公式演进总结
+
+| 版本         | 每个动作的权重                                       | 解决的问题             |
+| ---------- | --------------------------------------------- | ----------------- |
+| 原始         | $R(\tau^n)$                                   | —                 |
+| + Baseline | $R(\tau^n) - b$                               | 奖励全为正时，没采样到的动作被误伤 |
+| + 只看之后     | $\sum_{t'=t}^{T_n} r_{t'}^n - b$              | 同一局所有动作功劳一样，不公平   |
+| + 折扣       | $\sum_{t'=t}^{T_n}\gamma^{t'-t} r_{t'}^n - b$ | 越远的影响应该越小         |
+| 统一写法       | $A^\theta(s_t, a_t)$                          | 交给 critic 去估计     |
+公式的骨架 $\frac{1}{N}\sum\sum [\text{权重}],\nabla \log p_\theta(a_t^n|s_t^n)$ 从头到尾没变，变的只是"权重"怎么算得更准。
