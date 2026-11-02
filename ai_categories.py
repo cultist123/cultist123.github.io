@@ -7,6 +7,7 @@ CATEGORY={
  'lora':('ai','大模型','微调'), 'grpo':('ai','大模型','对齐'),
  'sequence-models':('deep-learning','深度学习',''), 'rmsnorm':('deep-learning','深度学习',''),
  'rope-yarn':('deep-learning','深度学习',''), 'padding-mask':('deep-learning','深度学习',''),
+ 'mdp':('reinforcement-learning','强化学习',''), 'bellman':('reinforcement-learning','强化学习',''),
  'policy-gradient':('reinforcement-learning','强化学习',''), 'ppo':('reinforcement-learning','强化学习',''),
  'actor-critic':('reinforcement-learning','强化学习',''), 'minimind':('projects','项目',''),
 }

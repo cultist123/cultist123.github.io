@@ -1,5 +1,15 @@
 [
   {
+    "slug": "mdp",
+    "title": "强化学习基础：MDP、策略与回报",
+    "date": "2026-11-01"
+  },
+  {
+    "slug": "bellman",
+    "title": "Bellman 方程：价值迭代与策略迭代",
+    "date": "2026-11-01"
+  },
+  {
     "slug": "rmsnorm",
     "title": "LayerNorm 与 RMSNorm：原理与实现",
     "date": "2026-11-01"

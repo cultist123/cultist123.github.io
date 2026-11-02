@@ -1,0 +1,142 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="个人主页、项目与学习笔记"><title>强化学习基础：MDP、策略与回报 · Nathen</title><link rel="stylesheet" href="/style.css?v=8d4e36e9b236"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231769aa'/%3E%3Cpath d='M9 8h14v16H9zM12 13h8M12 17h8' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"></head><body><div class="shell"><header class="header"><a class="name" href="/">Nathen</a><nav class="nav" aria-label="主导航"><a href="/">首页</a><a href="/blogs/?v=8d4e36e9b236" aria-current="page">博客</a><a href="/projects/?v=8d4e36e9b236">项目</a></nav></header><main id="main-content"><a class="back" href="/blogs/?v=8d4e36e9b236#reinforcement-learning">返回强化学习</a><p class="eyebrow">强化学习</p><h1>强化学习基础：MDP、策略与回报</h1><p class="lead">2026 年 11 月 1 日 · 学习笔记</p><div class="course-layout"><aside id="course-navigation" class="course-sidebar"><div class="sidebar-heading">本文目录</div><nav aria-label="本文目录"><a class="toc-level-3" href="#section-1">1. MDP 五元组</a><a class="toc-level-4" href="#section-2">例子：走廊机器人</a><a class="toc-level-3" href="#section-3">2. 策略 $\pi$</a><a class="toc-level-3" href="#section-4">3. 回报（Return）</a><a class="toc-level-3" href="#section-5">4. 最优策略</a><a class="toc-level-3" href="#section-6">5. 和 LLM 强化学习的对应</a></nav><nav class="local-toc"><a href="/blogs/?v=8d4e36e9b236#reinforcement-learning">返回强化学习</a></nav></aside><div class="course-main"><article class="prose course-note"><p>MDP 用 $[S, A, T, r, \gamma]$ 描述“智能体和环境的交互”；策略 $\pi$ 决定每个状态做什么，回报 $R_t$ 是未来奖励的折扣总和，强化学习的目标就是找到让期望回报最大的策略 $\pi^*$。</p>
+
+<h2 id="section-1">1. MDP 五元组</h2>
+
+<p>$$
+[S, A, T, r, \gamma]
+$$</p>
+
+<ul>
+<li><p>$S$：所有可能的<strong>状态</strong>集合</p></li>
+<li><p>$A$：所有可能的<strong>动作</strong>集合</p></li>
+<li><p>$T(s, a, s&#x27;)$：<strong>状态转移函数</strong>，</p></li>
+<li><p>$$
+  T(s, a, s&#x27;) = P(S_{t+1} = s&#x27; \mid S_t = s, A_t = a)
+  $$</p>
+
+<ul>
+<li>在状态 $s$ 下执行动作 $a$，下一步变成状态 $s&#x27;$ 的概率</li>
+</ul></li>
+<li><p>$r$：<strong>即时奖励函数</strong>，在某个状态 / 动作下当场得到多少奖励</p></li>
+<li><p>$\gamma$：<strong>折扣因子</strong>（0～1），越接近 1 越看重长期回报，越小越看重眼前收益</p></li>
+</ul>
+
+<h3 id="section-2">例子：走廊机器人</h3>
+
+<pre><code>[ 起点 ] → [ 中间 ] → [ 终点 +10 ]
+</code></pre>
+
+<table>
+<thead>
+<tr>
+  <th>概念</th>
+  <th>例子</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>状态 $S$</td>
+  <td>{起点, 中间, 终点}</td>
+</tr>
+<tr>
+  <td>动作 $A$</td>
+  <td>{向左, 向右}</td>
+</tr>
+<tr>
+  <td>转移 $T$</td>
+  <td>在起点选向右：90% 到中间，10% 打滑原地不动</td>
+</tr>
+<tr>
+  <td>奖励 $r$</td>
+  <td>到终点 +10，其他每步 0</td>
+</tr>
+<tr>
+  <td>折扣 $\gamma$</td>
+  <td>0.9</td>
+</tr>
+<tr>
+  <td>策略 $\pi$</td>
+  <td>在任何位置都 100% 向右</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>交互循环</strong>：看状态 → 按策略选动作 → 环境按 $T$ 转移到新状态并给出奖励 $r$ → 再看新状态……</p>
+
+<h2 id="section-3">2. 策略 $\pi$</h2>
+
+<ul>
+<li>$\pi(s, a)$（也写作 $\pi(a \mid s)$）：在状态 $s$ 时，以多大概率选择动作 $a$</li>
+<li>简单理解：<strong>“看到什么状态就做什么事”的规则</strong></li>
+</ul>
+
+<h2 id="section-4">3. 回报（Return）</h2>
+
+<p>$$
+R_t = \sum_{k=t}^{T} \gamma^{k-t}\, r_k(s_k, a_k)
+$$</p>
+
+<ul>
+<li>从时刻 $t$ 到结束时刻 $T$ 的<strong>总折扣回报</strong>：后面每一步的奖励乘上折扣 $\gamma^{k-t}$ 后加起来</li>
+<li>注意区分：<strong>奖励 $r$</strong> 是每一步当场拿到的分数；<strong>回报 $R_t$</strong> 是从现在到结束所有奖励的折扣总和</li>
+<li>注意：这里的 $T$ 是结束时刻，和转移函数 $T(s, a, s&#x27;)$ 是同一个字母两个意思</li>
+</ul>
+
+<p><strong>例子</strong>：每步奖励依次为 0, 0, 10</p>
+
+<ul>
+<li>$\gamma = 0.9$：$R_0 = 0 + 0.9 \times 0 + 0.9^2 \times 10 = 8.1$</li>
+<li>$\gamma = 0.5$：$R_0 = 0.5^2 \times 10 = 2.5$，越远的奖励打折越多</li>
+</ul>
+
+<blockquote>
+  <p><strong>追问：为什么要打折？</strong><br />
+  ① 越远的未来越不确定；② 任务没有终点（无限长）时，不打折的话总和会变成无穷大，没法比较不同策略。</p>
+</blockquote>
+
+<h2 id="section-5">4. 最优策略</h2>
+
+<p>$$
+\pi^* = \arg\max_\pi \ \mathbb{E}_\pi[R_t] \quad \text{for all } t
+$$</p>
+
+<ul>
+<li>在所有可能的策略里，让<strong>期望回报</strong>最大的那一个</li>
+<li>要取期望，是因为转移有随机性（会打滑），同一个策略每次跑出来的 $R_t$ 都不一样</li>
+</ul>
+
+<h2 id="section-6">5. 和 LLM 强化学习的对应</h2>
+
+<table>
+<thead>
+<tr>
+  <th>MDP</th>
+  <th>大模型生成</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>状态 $s$</td>
+  <td>prompt + 已经生成的 token</td>
+</tr>
+<tr>
+  <td>动作 $a$</td>
+  <td>下一个 token</td>
+</tr>
+<tr>
+  <td>策略 $\pi$</td>
+  <td><strong>大模型本身</strong>：给定前文，输出下一个 token 的概率</td>
+</tr>
+<tr>
+  <td>转移 $T$</td>
+  <td>确定的：把选中的 token 接到后面</td>
+</tr>
+<tr>
+  <td>奖励 $r$</td>
+  <td>通常只在最后给：奖励模型打分，或答案对不对</td>
+</tr>
+</tbody>
+</table>
+
+<p>用 RL 训练大模型 = 调整模型参数（策略 $\pi$），让生成的回答拿到的期望奖励最大。PPO、GRPO 解决的是“具体怎么调”。</p>
+</article></div></div><button class="course-menu-button" aria-controls="course-navigation" aria-expanded="false">☰ 目录</button><script>const courseMenu=document.querySelector('.course-menu-button');const courseSidebar=document.querySelector('.course-sidebar');courseMenu.addEventListener('click',()=>{const open=courseMenu.getAttribute('aria-expanded')!=='true';courseMenu.setAttribute('aria-expanded',String(open));courseSidebar.classList.toggle('is-open',open);});courseSidebar.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}));document.addEventListener('keydown',e=>{if(e.key==='Escape'){courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}});</script><script>window.MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js"></script></main><footer class="footer"><span>© 2026 Nathen</span><span>学习、构建与记录。</span></footer></div></body></html>
