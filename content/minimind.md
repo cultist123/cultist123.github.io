@@ -181,3 +181,38 @@ class FeedForward(nn.Module):
 pretrain是暴力填鸭,知识填充给了模型
 训练阶段=pretrain+SFT+对齐
 <img src="/images/obsidian/b93372a05986.png" alt="Screenshot 2026-11-01 at 22.33.53.png" width="404" />
+
+
+## SFT、LoRA 与对齐的实现记录
+
+SFT
+核心：把“只会续写的基座模型”变成“能听懂指令的对话模型”
+{"instruction": "宫保鸡丁怎么做？", "output": "先把鸡肉切丁..."}
+Pretrain：直接把整个回答组成的句子扔进去
+SFT：表明哪一部分是问题，哪一部分是回答
+实现效果：
+用户输入内容 -> 填充到类似 `"instruction": xxx` 里 -> 模型之前学会  
+这样的格式回答 -> 输出正常内容
+1. 添加 prompt masking 遮住指令部分
+2. 计算 loss 的时候进行masking，只计算回答部分的 loss
+~~{"instruction": "宫保鸡丁怎么做？"~~, "output": "先把鸡肉切丁..."} ->loss
+因为我们要训练的是：看到这个问题以后，应该怎么回答。而不是训练模型：怎么生成用户的问题。
+SFT和pretrain的部分主要区别在数据的加载
+
+|阶段|有没有标准答案|信号从哪来|
+|---|---|---|
+|预训练|没有人工答案|**自监督**：下一个词就是标签，从文本本身来|
+|**SFT**|**有**，人写好的回答|**有监督**：照着标准答案学|
+|RLHF / GRPO|没有标准答案|只有一个**分数**：回答好不好，自己摸索怎么拿高分|
+
+LoRA
+<img src="/images/obsidian/4af30aaf7168.png" alt="Screenshot 2026-11-02 at 16.38.38.png" width="291" />
+<img src="/images/obsidian/e0b6423fc126.png" alt="Screenshot 2026-11-02 at 16.39.07.png" width="219" />
+其实SFT就是加了mask的pretrain,但是LoRA对模型本身的结构进行了调整,所以代码要处理结构部分
+
+RLHF
+RLHF对齐,实现safety改变语言风格,增加推理能力
+DeepSeek - R1 GPRO增加推理能力
+
+RLHF - PPO
+在于数据库content内容是空,因为要强化学习自己生成

@@ -188,3 +188,58 @@ class Attention(nn.Module):
 <p>pretrain是暴力填鸭,知识填充给了模型<br />
 训练阶段=pretrain+SFT+对齐<br />
 <img src="/images/obsidian/b93372a05986.png" alt="Screenshot 2026-11-01 at 22.33.53.png" width="404" /></p>
+
+<h2>SFT、LoRA 与对齐的实现记录</h2>
+
+<p>SFT<br />
+核心：把“只会续写的基座模型”变成“能听懂指令的对话模型”<br />
+{"instruction": "宫保鸡丁怎么做？", "output": "先把鸡肉切丁..."}<br />
+Pretrain：直接把整个回答组成的句子扔进去<br />
+SFT：表明哪一部分是问题，哪一部分是回答<br />
+实现效果：<br />
+用户输入内容 -> 填充到类似 <code>"instruction": xxx</code> 里 -> 模型之前学会<br />
+这样的格式回答 -> 输出正常内容<br />
+1. 添加 prompt masking 遮住指令部分<br />
+2. 计算 loss 的时候进行masking，只计算回答部分的 loss<br />
+~~{"instruction": "宫保鸡丁怎么做？"~~, "output": "先把鸡肉切丁..."} ->loss<br />
+因为我们要训练的是：看到这个问题以后，应该怎么回答。而不是训练模型：怎么生成用户的问题。<br />
+SFT和pretrain的部分主要区别在数据的加载</p>
+
+<table>
+<thead>
+<tr>
+  <th>阶段</th>
+  <th>有没有标准答案</th>
+  <th>信号从哪来</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>预训练</td>
+  <td>没有人工答案</td>
+  <td><strong>自监督</strong>：下一个词就是标签，从文本本身来</td>
+</tr>
+<tr>
+  <td><strong>SFT</strong></td>
+  <td><strong>有</strong>，人写好的回答</td>
+  <td><strong>有监督</strong>：照着标准答案学</td>
+</tr>
+<tr>
+  <td>RLHF / GRPO</td>
+  <td>没有标准答案</td>
+  <td>只有一个<strong>分数</strong>：回答好不好，自己摸索怎么拿高分</td>
+</tr>
+</tbody>
+</table>
+
+<p>LoRA<br />
+<img src="/images/obsidian/4af30aaf7168.png" alt="Screenshot 2026-11-02 at 16.38.38.png" width="291" /><br />
+<img src="/images/obsidian/e0b6423fc126.png" alt="Screenshot 2026-11-02 at 16.39.07.png" width="219" /><br />
+其实SFT就是加了mask的pretrain,但是LoRA对模型本身的结构进行了调整,所以代码要处理结构部分</p>
+
+<p>RLHF<br />
+RLHF对齐,实现safety改变语言风格,增加推理能力<br />
+DeepSeek - R1 GPRO增加推理能力</p>
+
+<p>RLHF - PPO<br />
+在于数据库content内容是空,因为要强化学习自己生成</p>

@@ -1,0 +1,40 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="个人主页、项目与学习笔记"><title>SFT：指令格式与回答部分的 Loss · Nathen</title><link rel="stylesheet" href="/style.css?v=efd28914f115"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231769aa'/%3E%3Cpath d='M9 8h14v16H9zM12 13h8M12 17h8' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"></head><body><div class="shell"><header class="header"><a class="name" href="/">Nathen</a><nav class="nav" aria-label="主导航"><a href="/">首页</a><a href="/blogs/?v=efd28914f115" aria-current="page">博客</a><a href="/projects/?v=efd28914f115">项目</a></nav></header><main id="main-content"><a class="back" href="/blogs/?v=efd28914f115#ai">返回大模型</a><p class="eyebrow">大模型 · 微调</p><h1>SFT：指令格式与回答部分的 Loss</h1><p class="lead">2026 年 11 月 4 日 · 学习笔记</p><div class="course-layout"><aside id="course-navigation" class="course-sidebar"><div class="sidebar-heading">本文目录</div><nav aria-label="本文目录"><a class="toc-level-3" href="#notes">思路与公式</a></nav><nav class="local-toc"><a href="/blogs/?v=efd28914f115#ai">返回大模型</a></nav></aside><div class="course-main"><article class="prose course-note"><h2 id="notes">思路与公式</h2><p>核心：把“只会续写的基座模型”变成“能听懂指令的对话模型”<br />
+{"instruction": "宫保鸡丁怎么做？", "output": "先把鸡肉切丁..."}<br />
+Pretrain：直接把整个回答组成的句子扔进去<br />
+SFT：表明哪一部分是问题，哪一部分是回答<br />
+实现效果：<br />
+用户输入内容 -> 填充到类似 <code>"instruction": xxx</code> 里 -> 模型之前学会<br />
+这样的格式回答 -> 输出正常内容<br />
+1. 添加 prompt masking 遮住指令部分<br />
+2. 计算 loss 的时候进行masking，只计算回答部分的 loss<br />
+~~{"instruction": "宫保鸡丁怎么做？"~~, "output": "先把鸡肉切丁..."} ->loss<br />
+因为我们要训练的是：看到这个问题以后，应该怎么回答。而不是训练模型：怎么生成用户的问题。<br />
+SFT和pretrain的部分主要区别在数据的加载</p>
+
+<table>
+<thead>
+<tr>
+  <th>阶段</th>
+  <th>有没有标准答案</th>
+  <th>信号从哪来</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>预训练</td>
+  <td>没有人工答案</td>
+  <td><strong>自监督</strong>：下一个词就是标签，从文本本身来</td>
+</tr>
+<tr>
+  <td><strong>SFT</strong></td>
+  <td><strong>有</strong>，人写好的回答</td>
+  <td><strong>有监督</strong>：照着标准答案学</td>
+</tr>
+<tr>
+  <td>RLHF / GRPO</td>
+  <td>没有标准答案</td>
+  <td>只有一个<strong>分数</strong>：回答好不好，自己摸索怎么拿高分</td>
+</tr>
+</tbody>
+</table>
+</article></div></div><button class="course-menu-button" aria-controls="course-navigation" aria-expanded="false">☰ 目录</button><script>const courseMenu=document.querySelector('.course-menu-button');const courseSidebar=document.querySelector('.course-sidebar');courseMenu.addEventListener('click',()=>{const open=courseMenu.getAttribute('aria-expanded')!=='true';courseMenu.setAttribute('aria-expanded',String(open));courseSidebar.classList.toggle('is-open',open);});courseSidebar.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}));document.addEventListener('keydown',e=>{if(e.key==='Escape'){courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}});</script><script>window.MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js"></script></main><footer class="footer"><span>© 2026 Nathen</span><span>学习、构建与记录。</span></footer></div></body></html>

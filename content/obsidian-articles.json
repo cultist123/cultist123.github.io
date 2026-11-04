@@ -22,7 +22,8 @@
   {
     "slug": "minimind",
     "title": "MiniMind：模型实现与张量数据流",
-    "date": "2026-11-01"
+    "date": "2026-11-01",
+    "updated": "2026-11-04"
   },
   {
     "slug": "sequence-models",
@@ -58,5 +59,20 @@
     "slug": "gpt-bert",
     "title": "GPT 与 BERT：预训练、微调与 Prompt",
     "date": "2026-11-01"
+  },
+  {
+    "slug": "gpt3-gpt4",
+    "title": "GPT-3 与 GPT-4：Few-shot 与模型演进",
+    "date": "2026-11-04"
+  },
+  {
+    "slug": "sft",
+    "title": "SFT：指令格式与回答部分的 Loss",
+    "date": "2026-11-04"
+  },
+  {
+    "slug": "rlhf-ppo",
+    "title": "RLHF-PPO：四个模型、GAE 与训练代码",
+    "date": "2026-11-04"
   }
 ]

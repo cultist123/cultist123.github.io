@@ -1,0 +1,22 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="个人主页、项目与学习笔记"><title>GPT-3 与 GPT-4：Few-shot 与模型演进 · Nathen</title><link rel="stylesheet" href="/style.css?v=efd28914f115"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231769aa'/%3E%3Cpath d='M9 8h14v16H9zM12 13h8M12 17h8' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"></head><body><div class="shell"><header class="header"><a class="name" href="/">Nathen</a><nav class="nav" aria-label="主导航"><a href="/">首页</a><a href="/blogs/?v=efd28914f115" aria-current="page">博客</a><a href="/projects/?v=efd28914f115">项目</a></nav></header><main id="main-content"><a class="back" href="/blogs/?v=efd28914f115#ai">返回大模型</a><p class="eyebrow">大模型 · 预训练</p><h1>GPT-3 与 GPT-4：Few-shot 与模型演进</h1><p class="lead">2026 年 11 月 4 日 · 学习笔记</p><div class="course-layout"><aside id="course-navigation" class="course-sidebar"><div class="sidebar-heading">本文目录</div><nav aria-label="本文目录"><a class="toc-level-3" href="#notes">思路与公式</a></nav><nav class="local-toc"><a href="/blogs/?v=efd28914f115#ai">返回大模型</a></nav></aside><div class="course-main"><article class="prose course-note"><h2 id="notes">思路与公式</h2><p>GPT3<br />
+动机：<br />
+- 延续GPT2的思想，继续做大做强。<br />
+- 人类在做一个语言任务时，只要给几个例子就可以。但是传统Bert，GPT1，还需要成千上万的下游任务的例子。<br />
+- 能否通过在Prompt里给模型提供几个例子，提升模型性能。（Few-shot）<br />
+<img src="/images/obsidian/a220e5dbc2b1.png" alt="Screenshot 2026-11-02 at 13.55.51.png" width="425" /><br />
+微调就是给例子</p>
+
+<p>gpt3模型修改<br />
+稀疏注意力机制,每个token不和他前面所有的token计算注意力,只选择部分的<br />
+<img src="/images/obsidian/4b188b5cd738.png" alt="Screenshot 2026-11-02 at 13.57.38.png" /><br />
+gpt3训练数据<br />
+<img src="/images/obsidian/d275d19248d6.png" alt="Screenshot 2026-11-02 at 13.58.20.png" /></p>
+
+<p>gpt3模型效果<br />
+<img src="/images/obsidian/64ebc930575b.png" alt="Screenshot 2026-11-02 at 13.59.51.png" width="700" />few-shot好于别的</p>
+
+<p>gpt4<br />
+多模态,输入是文本和图片,输出是文字<br />
+GPT4透漏出来的见解<br />
+模型的能力是在预训练的时候获得的，RLHF只是和人类意识对齐。并不能提高模型表现。如果RLHF做的不好，还可能破坏模型原有的能力。</p>
+</article></div></div><button class="course-menu-button" aria-controls="course-navigation" aria-expanded="false">☰ 目录</button><script>const courseMenu=document.querySelector('.course-menu-button');const courseSidebar=document.querySelector('.course-sidebar');courseMenu.addEventListener('click',()=>{const open=courseMenu.getAttribute('aria-expanded')!=='true';courseMenu.setAttribute('aria-expanded',String(open));courseSidebar.classList.toggle('is-open',open);});courseSidebar.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}));document.addEventListener('keydown',e=>{if(e.key==='Escape'){courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}});</script><script>window.MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js"></script></main><footer class="footer"><span>© 2026 Nathen</span><span>学习、构建与记录。</span></footer></div></body></html>
