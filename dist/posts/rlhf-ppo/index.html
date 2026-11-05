@@ -1,12 +1,4 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="个人主页、项目与学习笔记"><title>RLHF-PPO：四个模型、GAE 与训练代码 · Nathen</title><link rel="stylesheet" href="/style.css?v=efd28914f115"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231769aa'/%3E%3Cpath d='M9 8h14v16H9zM12 13h8M12 17h8' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"></head><body><div class="shell"><header class="header"><a class="name" href="/">Nathen</a><nav class="nav" aria-label="主导航"><a href="/">首页</a><a href="/blogs/?v=efd28914f115" aria-current="page">博客</a><a href="/projects/?v=efd28914f115">项目</a></nav></header><main id="main-content"><a class="back" href="/blogs/?v=efd28914f115#ai">返回大模型</a><p class="eyebrow">大模型 · 对齐</p><h1>RLHF-PPO：四个模型、GAE 与训练代码</h1><p class="lead">2026 年 11 月 4 日 · 学习笔记</p><div class="course-layout"><aside id="course-navigation" class="course-sidebar"><div class="sidebar-heading">本文目录</div><nav aria-label="本文目录"><a class="toc-level-3" href="#section-1">RLHF-PPO 原理与源码</a><a class="toc-level-3" href="#section-2">&gt; 参考：知乎 · 猛猿《图解大模型RLHF系列之：人人都能看懂的PPO原理与源码解读》</a><a class="toc-level-3" href="#section-3">一、强化学习基础</a><a class="toc-level-4" href="#section-4">1.1 基本要素</a><a class="toc-level-4" href="#section-5">1.2 价值函数（简化版）</a><a class="toc-level-3" href="#section-6">- $\gamma$：折扣因子，控制未来收益计入当下的比重</a><a class="toc-level-3" href="#section-7">二、强化学习在 NLP 中的对应关系</a><a class="toc-level-3" href="#section-8">- $V_t$：从当前 token 到 response 结束的期望总收益（未来的 token 还没生成，只能预估）</a><a class="toc-level-3" href="#section-9">三、RLHF-PPO 的四个模型</a><a class="toc-level-4" href="#section-10">3.1 Actor：负责生成并更新策略</a><a class="toc-level-4" href="#section-11">3.2 Reference：用 KL 约束防止训歪</a><a class="toc-level-4" href="#section-12">3.3 Critic：为什么要单独训练</a><a class="toc-level-4" href="#section-13">3.4 Reward：为什么可以冻结</a><a class="toc-level-3" href="#section-14">  - 所以用 $R_t + \gamma V_{t+1}$ 作为 Critic 的学习目标（近似真实收益）</a><a class="toc-level-3" href="#section-15">四、Loss 设计</a><a class="toc-level-4" href="#section-16">4.1 Actor loss 的演进</a><a class="toc-level-4" href="#section-17">(1) 直观版</a><a class="toc-level-4" href="#section-18">(2) 引入优势 Advantage</a><a class="toc-level-4" href="#section-19">(3) 重新设计 $R_t$（加入 KL 约束）</a><a class="toc-level-4" href="#section-20">(4) 重新设计优势：GAE</a><a class="toc-level-4" href="#section-21">(5) PPO-epoch：经验复用 + 新约束</a><a class="toc-level-4" href="#section-22">(6) Actor loss 小结</a><a class="toc-level-4" href="#section-23">4.2 Critic loss</a><a class="toc-level-3" href="#section-24">- 注意：returns 中的 $Adv_t, V_t$ 来自旧 Critic（固定）；预估值随 ppo_epochs 变动</a><a class="toc-level-3" href="#section-25">五、核心代码速记（deepspeed-chat）</a><a class="toc-level-4" href="#section-26">compute_rewards：计算每个 token 的奖励</a><a class="toc-level-4" href="#section-27">getadvantagesand_returns：GAE 倒推</a><a class="toc-level-4" href="#section-28">actorlossfn：PPO-clip</a><a class="toc-level-4" href="#section-29">criticlossfn：value clip</a><a class="toc-level-4" href="#section-30">整体训练伪代码</a><a class="toc-level-3" href="#section-31">actor, critic, reward, ref = initialize_models()
-for batch in steps:
-    exps = generate_experience(prompts, actor, critic, reward, ref)
-    for _ in range(ppo_epochs):          # 同一批经验复用多次
-        actor_loss  = cal_actor_loss(exps, actor)
-        critic_loss = cal_critic_loss(exps, critic)
-        actor.backward(actor_loss);  actor.step()
-        critic.backward(critic_loss); critic.step()
-</a><a class="toc-level-3" href="#section-32">六、默认超参速查</a><a class="toc-level-3" href="#section-33">七、一句话总结</a><a class="toc-level-3" href="#section-34">论文</a><a class="toc-level-4" href="#section-35">InstructGPT 的 PPO Objective</a></nav><nav class="local-toc"><a href="/blogs/?v=efd28914f115#ai">返回大模型</a></nav></aside><div class="course-main"><article class="prose course-note"><p>RLHF - PPO<br />
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="个人主页、项目与学习笔记"><title>RLHF-PPO：四个模型、GAE 与训练代码 · Nathen</title><link rel="stylesheet" href="/style.css?v=1ed0b333c868"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231769aa'/%3E%3Cpath d='M9 8h14v16H9zM12 13h8M12 17h8' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"></head><body><div class="shell"><header class="header"><a class="name" href="/">Nathen</a><nav class="nav" aria-label="主导航"><a href="/">首页</a><a href="/blogs/?v=1ed0b333c868" aria-current="page">博客</a><a href="/projects/?v=1ed0b333c868">项目</a></nav></header><main id="main-content"><a class="back" href="/blogs/?v=1ed0b333c868#ai">返回大模型</a><p class="eyebrow">大模型 · 对齐</p><h1>RLHF-PPO：四个模型、GAE 与训练代码</h1><p class="lead">2026 年 11 月 4 日 · 学习笔记</p><div class="course-layout"><aside id="course-navigation" class="course-sidebar"><div class="sidebar-heading">本文目录</div><nav aria-label="本文目录"><a class="toc-level-3" href="#section-1">RLHF-PPO 原理与源码</a><a class="toc-level-3" href="#section-2">&gt; 参考：知乎 · 猛猿《图解大模型RLHF系列之：人人都能看懂的PPO原理与源码解读》</a><a class="toc-level-3" href="#section-3">一、强化学习基础</a><a class="toc-level-4" href="#section-4">1.1 基本要素</a><a class="toc-level-4" href="#section-5">1.2 价值函数（简化版）</a><a class="toc-level-3" href="#section-6">- $\gamma$：折扣因子，控制未来收益计入当下的比重</a><a class="toc-level-3" href="#section-7">二、强化学习在 NLP 中的对应关系</a><a class="toc-level-3" href="#section-8">- $V_t$：从当前 token 到 response 结束的期望总收益（未来的 token 还没生成，只能预估）</a><a class="toc-level-3" href="#section-9">三、RLHF-PPO 的四个模型</a><a class="toc-level-4" href="#section-10">3.1 Actor：负责生成并更新策略</a><a class="toc-level-4" href="#section-11">3.2 Reference：用 KL 约束防止训歪</a><a class="toc-level-4" href="#section-12">3.3 Critic：为什么要单独训练</a><a class="toc-level-4" href="#section-13">3.4 Reward：为什么可以冻结</a><a class="toc-level-3" href="#section-14">  - 所以用 $R_t + \gamma V_{t+1}$ 作为 Critic 的学习目标（近似真实收益）</a><a class="toc-level-3" href="#section-15">四、Loss 设计</a><a class="toc-level-4" href="#section-16">4.1 Actor loss 的演进</a><a class="toc-level-4" href="#section-17">(1) 直观版</a><a class="toc-level-4" href="#section-18">(2) 引入优势 Advantage</a><a class="toc-level-4" href="#section-19">(3) 重新设计 $R_t$（加入 KL 约束）</a><a class="toc-level-4" href="#section-20">(4) 重新设计优势：GAE</a><a class="toc-level-4" href="#section-21">(5) PPO-epoch：经验复用 + 新约束</a><a class="toc-level-4" href="#section-22">(6) Actor loss 小结</a><a class="toc-level-4" href="#section-23">4.2 Critic loss</a><a class="toc-level-3" href="#section-24">- 注意：returns 中的 $Adv_t, V_t$ 来自旧 Critic（固定）；预估值随 ppo_epochs 变动</a><a class="toc-level-3" href="#section-25">五、核心代码速记（deepspeed-chat）</a><a class="toc-level-4" href="#section-26">compute_rewards：计算每个 token 的奖励</a><a class="toc-level-4" href="#section-27">getadvantagesand_returns：GAE 倒推</a><a class="toc-level-4" href="#section-28">actorlossfn：PPO-clip</a><a class="toc-level-4" href="#section-29">criticlossfn：value clip</a><a class="toc-level-4" href="#section-30">整体训练伪代码</a><a class="toc-level-3" href="#section-31">六、默认超参速查</a><a class="toc-level-3" href="#section-32">七、一句话总结</a><a class="toc-level-3" href="#section-33">论文</a><a class="toc-level-4" href="#section-34">InstructGPT 的 PPO Objective</a></nav><nav class="local-toc"><a href="/blogs/?v=1ed0b333c868#ai">返回大模型</a></nav></aside><div class="course-main"><article class="prose course-note"><p>RLHF - PPO<br />
 最早是强化学习中的 <strong>Actor-Critic / Policy Gradient</strong> 思路<br />
 ↓<br />
 <strong>Schulman et al., 2017 — Proximal Policy Optimization Algorithms (PPO)</strong><br />
@@ -304,7 +296,7 @@ vf_loss = 0.5 * torch.sum(torch.max(vf_loss1, vf_loss2) * mask) / mask.sum()
 
 <h3 id="section-30">整体训练伪代码</h3>
 
-<h2 id="section-31"><pre><code>actor, critic, reward, ref = initialize_models()
+<pre><code>actor, critic, reward, ref = initialize_models()
 for batch in steps:
     exps = generate_experience(prompts, actor, critic, reward, ref)
     for _ in range(ppo_epochs):          # 同一批经验复用多次
@@ -312,9 +304,9 @@ for batch in steps:
         critic_loss = cal_critic_loss(exps, critic)
         actor.backward(actor_loss);  actor.step()
         critic.backward(critic_loss); critic.step()
-</code></pre></h2>
+</code></pre>
 
-<h2 id="section-32">六、默认超参速查</h2>
+<h2 id="section-31">六、默认超参速查</h2>
 
 <table>
 <thead>
@@ -358,15 +350,15 @@ for batch in steps:
 </tbody>
 </table>
 
-<h2 id="section-33">七、一句话总结</h2>
+<h2 id="section-32">七、一句话总结</h2>
 
 <blockquote>
   <p>Actor 生成 → Reward 打分 + Ref 算 KL 得到每个 token 的奖励 → Critic 估值 → GAE 倒推优势与 returns → 同一批经验复用 ppo_epochs 次，用 clip 约束 Actor 和 Critic 的更新幅度。</p>
 </blockquote>
 
-<h2 id="section-34">论文</h2>
+<h2 id="section-33">论文</h2>
 
-<h3 id="section-35">InstructGPT 的 PPO Objective</h3>
+<h3 id="section-34">InstructGPT 的 PPO Objective</h3>
 
 <p>$$  
 \operatorname{objective}(\phi)=\mathbb{E}_{(x,y)\sim D_{\pi_{\phi}^{RL}}}\left[r_{\theta}(x,y)-\beta\log\frac{\pi_{\phi}^{RL}(y\mid x)}{\pi^{SFT}(y\mid x)}\right]+\gamma\mathbb{E}_{x\sim D_{\mathrm{pretrain}}}\left[\log\pi_{\phi}^{RL}(x)\right]  

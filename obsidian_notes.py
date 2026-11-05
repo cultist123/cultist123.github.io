@@ -13,7 +13,9 @@ def build(page):
   year,month,day=map(int,a.get('updated',a['date']).split('-'));display_date=f'{year} 年 {month} 月 {day} 日'
   content=(ROOT/f'content/{slug}.html').read_text()
   def heading(m):
-   level,text=m.groups();anchor=f'section-{len(entries)+1}'
+   level,text=m.groups()
+   if '<pre' in text:return text
+   anchor=f'section-{len(entries)+1}'
    entries.append((level,anchor,html.unescape(re.sub('<[^>]+>','',text))))
    return f'<h{level} id="{anchor}">{text}</h{level}>'
   content=re.sub(r'<h([23])>(.*?)</h\1>',heading,content,flags=re.S)

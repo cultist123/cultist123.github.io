@@ -296,7 +296,7 @@ vf_loss = 0.5 * torch.sum(torch.max(vf_loss1, vf_loss2) * mask) / mask.sum()
 
 <h3>整体训练伪代码</h3>
 
-<h2><pre><code>actor, critic, reward, ref = initialize_models()
+<pre><code>actor, critic, reward, ref = initialize_models()
 for batch in steps:
     exps = generate_experience(prompts, actor, critic, reward, ref)
     for _ in range(ppo_epochs):          # 同一批经验复用多次
@@ -304,7 +304,7 @@ for batch in steps:
         critic_loss = cal_critic_loss(exps, critic)
         actor.backward(actor_loss);  actor.step()
         critic.backward(critic_loss); critic.step()
-</code></pre></h2>
+</code></pre>
 
 <h2>六、默认超参速查</h2>
 

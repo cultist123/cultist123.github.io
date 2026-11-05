@@ -116,7 +116,7 @@ class Attention(nn.Module):
         return output, past_key_value
 </code></pre>
 
-<h2><pre><code>class FeedForward(nn.Module):
+<pre><code>class FeedForward(nn.Module):
     #初始化
     def __init__(self,args:MokioMindConfig):
         super().__init__()
@@ -135,7 +135,7 @@ class Attention(nn.Module):
         self.act_fn = ACT2FN[args.hidden_act]
     def forward(self, x):  
         return self.dropout(self.down_proj(self.up_proj(x) * self.act_fn(self.gate_proj(x))))
-</code></pre></h2>
+</code></pre>
 
 <h2>一次前向传播的数据流</h2>
 
