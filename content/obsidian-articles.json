@@ -2,217 +2,355 @@
   {
     "slug": "mdp",
     "title": "强化学习基础：MDP、策略与回报",
-    "date": "2026-11-01"
+    "date": "2026-10-27",
+    "sources": [
+      "强化学习.md"
+    ]
   },
   {
     "slug": "bellman",
     "title": "Bellman 方程：价值迭代与策略迭代",
-    "date": "2026-11-01"
+    "date": "2026-10-27",
+    "sources": [
+      "强化学习.md"
+    ]
   },
   {
     "slug": "rmsnorm",
     "title": "LayerNorm 与 RMSNorm：原理与实现",
-    "date": "2026-11-01"
+    "date": "2026-10-28",
+    "sources": [
+      "day 1.md"
+    ]
   },
   {
     "slug": "rope-yarn",
     "title": "RoPE 与 YaRN：位置编码与长度外推",
-    "date": "2026-11-01"
+    "date": "2026-10-29",
+    "sources": [
+      "day 2.md"
+    ]
   },
   {
     "slug": "minimind",
     "title": "MiniMind：模型实现与张量数据流",
-    "date": "2026-11-01",
-    "updated": "2026-11-24"
+    "date": "2026-10-28",
+    "sources": [
+      "day 1.md",
+      "day 3.md",
+      "day 4.md",
+      "day 5.md",
+      "day 6.md",
+      "day 8.md"
+    ],
+    "updated": "2026-11-05"
   },
   {
     "slug": "sequence-models",
     "title": "序列模型：N 元语法、RNN 与困惑度",
-    "date": "2026-11-01"
+    "date": "2026-10-29",
+    "sources": [
+      "day 2.md",
+      "day 3.md"
+    ],
+    "updated": "2026-10-30"
   },
   {
     "slug": "padding-mask",
     "title": "Padding Mask：填充掩码与因果掩码",
-    "date": "2026-11-01"
+    "date": "2026-10-31",
+    "sources": [
+      "day 4.md"
+    ]
   },
   {
     "slug": "policy-gradient",
     "title": "Policy Gradient：推导、Baseline 与训练流程",
-    "date": "2026-11-01"
+    "date": "2026-10-30",
+    "sources": [
+      "day 3.md",
+      "day 4.md"
+    ],
+    "updated": "2026-10-31"
   },
   {
     "slug": "ppo",
     "title": "PPO：重要性采样、约束与 Clip",
-    "date": "2026-11-01"
+    "date": "2026-10-31",
+    "sources": [
+      "day 4.md"
+    ]
   },
   {
     "slug": "actor-critic",
     "title": "Actor-Critic：从策略梯度到 A2C 与 A3C",
-    "date": "2026-11-01"
+    "date": "2026-10-31",
+    "sources": [
+      "day 4.md"
+    ]
   },
   {
     "slug": "grpo",
     "title": "GRPO：目标函数与组内优势估计",
-    "date": "2026-11-01"
+    "date": "2026-10-30",
+    "sources": [
+      "day 3.md"
+    ]
   },
   {
     "slug": "gpt-bert",
     "title": "GPT 与 BERT：预训练、微调与 Prompt",
-    "date": "2026-11-01"
+    "date": "2026-11-01",
+    "sources": [
+      "day 5.md"
+    ]
   },
   {
     "slug": "gpt3-gpt4",
     "title": "GPT-3 与 GPT-4：Few-shot 与模型演进",
-    "date": "2026-11-04"
+    "date": "2026-11-02",
+    "sources": [
+      "day 6.md"
+    ]
   },
   {
     "slug": "sft",
     "title": "SFT：指令格式与回答部分的 Loss",
-    "date": "2026-11-04"
+    "date": "2026-11-02",
+    "sources": [
+      "day 6.md"
+    ]
   },
   {
     "slug": "rlhf-ppo",
     "title": "RLHF-PPO：四个模型、GAE 与训练代码",
-    "date": "2026-11-04"
+    "date": "2026-11-02",
+    "sources": [
+      "day 6.md"
+    ]
   },
   {
     "slug": "dpo",
     "title": "DPO：偏好对齐的数学推导",
-    "date": "2026-11-24"
+    "date": "2026-11-04",
+    "sources": [
+      "day 8.md"
+    ]
   },
   {
     "slug": "qwen3",
     "title": "Qwen3：模型与训练笔记",
-    "date": "2026-11-24"
+    "date": "2026-11-04",
+    "sources": [
+      "day 8.md"
+    ]
   },
   {
     "slug": "search-r1",
     "title": "Search-R1：用强化学习学习搜索",
-    "date": "2026-11-24"
+    "date": "2026-11-08",
+    "sources": [
+      "day 11.md"
+    ]
   },
   {
     "slug": "memento",
     "title": "MeMento：偏好条件化的多模态记忆",
-    "date": "2026-11-24"
+    "date": "2026-11-08",
+    "sources": [
+      "day 11.md"
+    ]
   },
   {
     "slug": "ragen",
     "title": "RAGEN：多轮 Agent 强化学习与训练稳定性",
-    "date": "2026-11-24"
+    "date": "2026-11-08",
+    "sources": [
+      "day 11.md"
+    ]
   },
   {
     "slug": "act-aloha",
     "title": "ACT / ALOHA：动作分块与双臂模仿学习",
-    "date": "2026-11-24"
+    "date": "2026-11-09",
+    "sources": [
+      "day 12.md"
+    ]
   },
   {
     "slug": "clip",
     "title": "CLIP：图文对比预训练与零样本迁移",
-    "date": "2026-11-24"
+    "date": "2026-11-09",
+    "sources": [
+      "day 12.md"
+    ]
   },
   {
     "slug": "diffusion-policy",
     "title": "Diffusion Policy：用扩散模型生成动作",
-    "date": "2026-11-24"
+    "date": "2026-11-09",
+    "sources": [
+      "day 12.md"
+    ]
   },
   {
     "slug": "libero",
     "title": "LIBERO：终身机器人学习与知识迁移",
-    "date": "2026-11-24"
+    "date": "2026-11-10",
+    "sources": [
+      "day 13.md"
+    ]
   },
   {
     "slug": "libero-dynamic",
     "title": "LIBERO-Dynamic：动态环境、推理延迟与执行协议",
-    "date": "2026-11-24"
+    "date": "2026-11-11",
+    "sources": [
+      "day 14.md"
+    ]
   },
   {
     "slug": "pcbworld",
     "title": "PCBWorld：原生 PCB 设计自动化环境",
-    "date": "2026-11-24"
+    "date": "2026-11-13",
+    "sources": [
+      "day 16.md"
+    ]
   },
   {
     "slug": "fanoutnet",
     "title": "FanoutNet：强化学习与 PCB 扇出自动化",
-    "date": "2026-11-24"
+    "date": "2026-11-13",
+    "sources": [
+      "day 16.md"
+    ]
   },
   {
     "slug": "pcb-route-agent",
     "title": "PCBRouteAgent：大模型驱动的分层布线",
-    "date": "2026-11-24"
+    "date": "2026-11-13",
+    "sources": [
+      "day 16.md"
+    ]
   },
   {
     "slug": "cadet",
     "title": "CADET：可执行示范与 PCB 布线数据构造",
-    "date": "2026-11-24"
+    "date": "2026-11-17",
+    "sources": [
+      "day 20.md"
+    ]
   },
   {
     "slug": "seq2seq-attention",
     "title": "Seq2Seq：编码器、解码器与注意力",
-    "date": "2026-11-24"
+    "date": "2026-11-18",
+    "sources": [
+      "day 21.md"
+    ]
   },
   {
     "slug": "retool",
     "title": "ReTool：学习策略性工具调用",
-    "date": "2026-11-24"
+    "date": "2026-11-18",
+    "sources": [
+      "day 21.md"
+    ]
   },
   {
     "slug": "rt2",
     "title": "RT-2：从视觉语言模型到机器人动作",
-    "date": "2026-11-24"
+    "date": "2026-11-19",
+    "sources": [
+      "day 22.md"
+    ]
   },
   {
     "slug": "openvla",
     "title": "OpenVLA：开源视觉语言动作模型",
-    "date": "2026-11-24"
+    "date": "2026-11-19",
+    "sources": [
+      "day 22.md"
+    ]
   },
   {
     "slug": "flow-matching",
     "title": "Flow Matching：从噪声到数据的速度场",
-    "date": "2026-11-24"
+    "date": "2026-11-20",
+    "sources": [
+      "day 23.md"
+    ]
   },
   {
     "slug": "agentic-rl-basics",
     "title": "Agentic RL：任务建模与传统 RL 的区别",
-    "date": "2026-11-24"
+    "date": "2026-11-21",
+    "sources": [
+      "day 24.md"
+    ]
   },
   {
     "slug": "gigpo",
     "title": "GiGPO：多步 Agent 的分组与信用分配",
-    "date": "2026-11-24"
+    "date": "2026-11-21",
+    "sources": [
+      "day 24.md"
+    ]
   },
   {
     "slug": "multi-turn-agentic-rl",
     "title": "多轮 Agentic RL：奖励、信用分配与实践",
-    "date": "2026-11-24"
+    "date": "2026-11-21",
+    "sources": [
+      "day 24.md"
+    ]
   },
   {
     "slug": "agent-lightning",
     "title": "Agent Lightning：Agent 执行与 RL 训练解耦",
-    "date": "2026-11-24"
+    "date": "2026-11-21",
+    "sources": [
+      "day 24.md"
+    ]
   },
   {
     "slug": "llm-agent-timeline",
     "title": "从 Transformer 到 Agentic RL：大模型发展脉络",
-    "date": "2026-11-24"
+    "date": "2026-11-23",
+    "sources": [
+      "day 25.md"
+    ]
   },
   {
     "slug": "real-time-reasoning",
     "title": "实时推理 Agent：Token Clock 与双线程推理",
-    "date": "2026-11-24"
+    "date": "2026-11-23",
+    "sources": [
+      "day 25.md"
+    ]
   },
   {
     "slug": "timely-machine",
     "title": "Timely Machine：时间感知的测试时扩展",
-    "date": "2026-11-24"
+    "date": "2026-11-23",
+    "sources": [
+      "day 25.md"
+    ]
   },
   {
     "slug": "budget-aware-agents",
     "title": "预算感知 Agent：多轮决策与资源约束奖励",
-    "date": "2026-11-24"
+    "date": "2026-11-23",
+    "sources": [
+      "day 25.md"
+    ]
   },
   {
     "slug": "thinkless",
     "title": "Thinkless：学习何时思考与 DeGRPO",
-    "date": "2026-11-24"
+    "date": "2026-11-23",
+    "sources": [
+      "day 25.md"
+    ]
   }
 ]

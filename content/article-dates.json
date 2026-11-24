@@ -1,0 +1,372 @@
+{
+  "dpo": {
+    "date": "2026-11-04",
+    "sources": [
+      "day 8.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "qwen3": {
+    "date": "2026-11-04",
+    "sources": [
+      "day 8.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "search-r1": {
+    "date": "2026-11-08",
+    "sources": [
+      "day 11.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "memento": {
+    "date": "2026-11-08",
+    "sources": [
+      "day 11.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "ragen": {
+    "date": "2026-11-08",
+    "sources": [
+      "day 11.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "act-aloha": {
+    "date": "2026-11-09",
+    "sources": [
+      "day 12.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "clip": {
+    "date": "2026-11-09",
+    "sources": [
+      "day 12.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "diffusion-policy": {
+    "date": "2026-11-09",
+    "sources": [
+      "day 12.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "libero": {
+    "date": "2026-11-10",
+    "sources": [
+      "day 13.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "libero-dynamic": {
+    "date": "2026-11-11",
+    "sources": [
+      "day 14.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "pcbworld": {
+    "date": "2026-11-13",
+    "sources": [
+      "day 16.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "fanoutnet": {
+    "date": "2026-11-13",
+    "sources": [
+      "day 16.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "pcb-route-agent": {
+    "date": "2026-11-13",
+    "sources": [
+      "day 16.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "cadet": {
+    "date": "2026-11-17",
+    "sources": [
+      "day 20.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "seq2seq-attention": {
+    "date": "2026-11-18",
+    "sources": [
+      "day 21.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "retool": {
+    "date": "2026-11-18",
+    "sources": [
+      "day 21.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "rt2": {
+    "date": "2026-11-19",
+    "sources": [
+      "day 22.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "openvla": {
+    "date": "2026-11-19",
+    "sources": [
+      "day 22.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "flow-matching": {
+    "date": "2026-11-20",
+    "sources": [
+      "day 23.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "agentic-rl-basics": {
+    "date": "2026-11-21",
+    "sources": [
+      "day 24.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "gigpo": {
+    "date": "2026-11-21",
+    "sources": [
+      "day 24.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "multi-turn-agentic-rl": {
+    "date": "2026-11-21",
+    "sources": [
+      "day 24.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "agent-lightning": {
+    "date": "2026-11-21",
+    "sources": [
+      "day 24.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "llm-agent-timeline": {
+    "date": "2026-11-23",
+    "sources": [
+      "day 25.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "real-time-reasoning": {
+    "date": "2026-11-23",
+    "sources": [
+      "day 25.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "timely-machine": {
+    "date": "2026-11-23",
+    "sources": [
+      "day 25.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "budget-aware-agents": {
+    "date": "2026-11-23",
+    "sources": [
+      "day 25.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "thinkless": {
+    "date": "2026-11-23",
+    "sources": [
+      "day 25.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "mdp": {
+    "date": "2026-10-27",
+    "sources": [
+      "强化学习.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "bellman": {
+    "date": "2026-10-27",
+    "sources": [
+      "强化学习.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "rmsnorm": {
+    "date": "2026-10-28",
+    "sources": [
+      "day 1.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "rope-yarn": {
+    "date": "2026-10-29",
+    "sources": [
+      "day 2.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "minimind": {
+    "date": "2026-10-28",
+    "sources": [
+      "day 1.md",
+      "day 3.md",
+      "day 4.md",
+      "day 5.md",
+      "day 6.md",
+      "day 8.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago",
+    "updated": "2026-11-05"
+  },
+  "sequence-models": {
+    "date": "2026-10-29",
+    "sources": [
+      "day 2.md",
+      "day 3.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago",
+    "updated": "2026-10-30"
+  },
+  "padding-mask": {
+    "date": "2026-10-31",
+    "sources": [
+      "day 4.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "policy-gradient": {
+    "date": "2026-10-30",
+    "sources": [
+      "day 3.md",
+      "day 4.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago",
+    "updated": "2026-10-31"
+  },
+  "ppo": {
+    "date": "2026-10-31",
+    "sources": [
+      "day 4.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "actor-critic": {
+    "date": "2026-10-31",
+    "sources": [
+      "day 4.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "grpo": {
+    "date": "2026-10-30",
+    "sources": [
+      "day 3.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "gpt-bert": {
+    "date": "2026-11-01",
+    "sources": [
+      "day 5.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "gpt3-gpt4": {
+    "date": "2026-11-02",
+    "sources": [
+      "day 6.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "sft": {
+    "date": "2026-11-02",
+    "sources": [
+      "day 6.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "rlhf-ppo": {
+    "date": "2026-11-02",
+    "sources": [
+      "day 6.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "transformer": {
+    "date": "2026-10-14",
+    "sources": [
+      "Transformer.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  },
+  "lora": {
+    "date": "2026-10-21",
+    "sources": [
+      "论文.md"
+    ],
+    "basis": "source_file_creation_date",
+    "timezone": "America/Chicago"
+  }
+}
