@@ -1,0 +1,156 @@
+<blockquote>
+  <p>Radford et al., 2021（OpenAI）｜整理自 Zotero 阅读批注｜<a href="zotero://open-pdf/library/items/EBRF6KBS">在 Zotero 中打开 PDF</a></p>
+</blockquote>
+
+<p><strong>一句话</strong>：用 4 亿对网络（图像, 文本）做对比学习，让图像编码器和文本编码器在同一语义空间对齐；推理时把类别名写成句子，就能直接做 <strong>zero-shot</strong> 分类，摆脱"固定类别 + 分类头"的范式。</p>
+
+<h2>1. 动机：为什么要从文本中学习</h2>
+
+<ul>
+<li><strong>传统做法的局限</strong>：视觉模型在 <em>a fixed set of predetermined object categories</em> 上训练（如 ImageNet 固定 1000 类）。输出只能"1000 选 1"（<em>static softmax classifiers</em>），遇到新类别就要重新标注、重新训练，难以扩大规模。</li>
+<li><strong>CLIP 的思路</strong>：<em>Learning directly from raw text about images</em>。互联网上的文本是取之不尽的弱监督信号——文本里见过的概念，就有可能在图片里认出来。</li>
+<li><strong>NLP 的启发</strong>：GPT 等用 <em>autoregressive / masked language modeling</em> 自监督预训练 + <em>"text-to-text"</em> 接口，做到了与任务无关的迁移，几乎不需要特定数据集的训练数据（<em>little to no dataset specific training data</em>）。CLIP 想把这种范式搬到视觉上。</li>
+<li><strong>为什么以前没做成</strong>：之前的弱监督 / 文本监督工作并非方法不行，而是<strong>规模不够</strong>——只在一二十万张图上训练几个加速器天（<em>accelerator days on one to two hundred thousand images</em>），而同期弱监督工作用的是加速器"年"级别的计算。CLIP 把数据扩大到 <strong>4 亿（image, text）对</strong>。</li>
+<li>文本监督介于两端之间（<em>pragmatic middle ground</em>）：比固定标签更灵活，比纯无监督更容易利用。</li>
+</ul>
+
+<h2>2. 方法总览：对比预训练 + 零样本分类器</h2>
+
+<p><img src="/images/obsidian/67d89c32e3bd.png" alt="CLIP_图1_CLIP方法总览.png" width="720" /><br />
+<em>论文图 1：(1) 对比预训练；(2) 用标签文本构造分类器；(3) 零样本预测。</em></p>
+
+<p><strong>(1) 对比预训练</strong><br />
+- 一个 batch 有 N 对（图像, 文本），分别过 Image Encoder 和 Text Encoder，得到 $I_1..I_N$ 与 $T_1..T_N$。<br />
+- 计算 N×N 相似度矩阵 $I_i\cdot T_j$：<strong>对角线是正样本</strong>（真实配对），其余 $N^2-N$ 个都是负样本。<br />
+- 不需要人工标注类别、筛选清洗标签，只需要"配对"本身：模型学的是<strong>语言和图片的配对关系</strong>，而不是单纯的图片特征。<br />
+- 无监督/弱监督需要大量、质量过得去的数据。</p>
+
+<p><strong>(2)(3) 零样本推理</strong><br />
+- 训练好后得到两个编码器。文本端输入你关心的标签，例如 plane / car / dog / bird。<br />
+- 用 prompt template 把单词变成句子："A photo of a {object}."，4 个类别 → 4 个句子 → 4 个文本特征。<br />
+- 图像特征与这些文本特征算余弦相似度，经 softmax 得到概率分布，最相似的句子就是预测类别；多个类别可并行计算。<br />
+- <strong>没有分类头、没在下游数据集上微调</strong>：文本编码器即时"合成"了一个零样本线性分类器。</p>
+
+<h2>3. 为什么选对比学习而不是预测文本</h2>
+
+<p><img src="/images/obsidian/d65397fb62be.png" alt="CLIP_图2_对比学习效率.png" width="480" /><br />
+<em>论文图 2：同样看过的图片数下，对比目标（绿）的零样本 ImageNet 准确率远高于词袋预测（橙）和 Transformer 语言模型（蓝）。</em></p>
+
+<ul>
+<li>一张图可以有无数种描述，<strong>逐字预测</strong>图片对应的文本（类似 image captioning）可能性太多，训练很慢。</li>
+<li>论文改为一个更容易的代理任务：<em>predicting only which text as a whole is paired with which image</em>，即<strong>只判断图文是否配对</strong>（<em>predictive objective → contrastive objective</em>）。</li>
+<li>效果：词袋预测比 Transformer 语言模型快 3 倍，对比目标再快 4 倍。</li>
+</ul>
+
+<h2>4. 数据集：WIT（WebImageText）</h2>
+
+<ul>
+<li>从互联网收集 <strong>4 亿</strong>（图像, 文本）对。</li>
+<li>构造方式：用 50 万个查询词（Wikipedia 高频词等）检索图文对，每个查询最多保留 2 万对，以平衡类别。</li>
+<li>目标是学习<strong>开放集合的视觉概念</strong>（<em>open set of visual concepts</em>），而不是固定类别。</li>
+<li>数据集足够大，因此作者认为过拟合（<em>over-fitting</em>）不是主要问题。</li>
+</ul>
+
+<h2>5. 训练实现：核心伪代码</h2>
+
+<p><img src="/images/obsidian/4f7436db13f1.png" alt="CLIP_图3_伪代码.png" width="480" /><br />
+<em>论文图 3：CLIP 核心实现的 Numpy 风格伪代码。</em></p>
+
+<p>流程与单模态对比学习一模一样，只是把两路特征换成<strong>图像特征 + 文本特征</strong>：<br />
+1. 两个编码器分别提特征 $I_f$、$T_f$。<br />
+2. 线性投影到同一嵌入空间并 L2 归一化（CLIP 只用<strong>线性</strong>投影，没有采用 SimCLR 等工作里的 <em>non-linear projections</em> 非线性投影头）。<br />
+3. 相似度矩阵 × $\exp(t)$，温度 $t$ 是<strong>可学习</strong>参数。<br />
+4. 标签就是 <code>arange(n)</code>（对角线）；对图像方向、文本方向各做一次交叉熵，取平均（对称损失）。</p>
+
+<p>训练细节：<br />
+- Batch size 达 <strong>32,768</strong>。<br />
+- <strong>混合精度</strong>（<em>Mixed-precision</em>）加速训练、节省显存，且基本不掉点。<br />
+- 最大的 RN50x64 用 592 张 V100 训练 18 天；最大的 ViT 用 256 张 V100 训练 12 天。<br />
+- ViT-L/14 额外在 <strong>336 像素</strong>更高分辨率上多训练 1 个 epoch（类似 FixRes），提升效果，即 ViT-L/14@336px。</p>
+
+<h2>6. Zero-shot 迁移与 Prompt Engineering</h2>
+
+<p><strong>目标</strong>：表征学习通常学到好特征后仍要微调；CLIP 借助文本实现灵活的 zero-shot 迁移。</p>
+
+<p><strong>和 Visual N-Grams 对比</strong>：ImageNet 零样本准确率从 11.5% 提升到 <strong>76.2%</strong>，与原始有监督 ResNet-50 持平，而且<strong>一张 ImageNet 训练图都没用</strong>（<em>none of the 1.28 million crowd-labeled training examples</em>）。</p>
+
+<p><strong>为什么需要 prompt</strong>：<br />
+- <strong>多义性</strong>（<em>polysemy</em>）：只给一个单词有歧义，如 <em>construction cranes</em>（起重机）与 <em>cranes</em>（鹤）。<br />
+- <strong>分布差距</strong>（<em>distribution gap</em>）：预训练文本大多是完整句子，推理时只给单词会不匹配。<br />
+- 默认模板 <strong>"A photo of a {label}."</strong>；针对数据集加上下文可以<strong>缩小解空间</strong>，如 Oxford-IIIT Pets 用 "A photo of a {label}, a type of pet."。<br />
+- <strong>Prompt ensembling</strong>：用多个模板分别推理再集成。ImageNet 上集成 80 个模板，比单一模板再提升 3.5%；prompt engineering 与 ensembling 合计提升近 5%。</p>
+
+<h2>7. 零样本 vs 有监督 vs 少样本</h2>
+
+<p><img src="/images/obsidian/bb251046c55c.png" alt="CLIP_图5_零样本vs线性探针.png" width="480" /><br />
+<em>论文图 5：零样本 CLIP 与在 ResNet-50 特征上训练的全监督线性分类器对比，27 个数据集中 16 个更好（含 ImageNet）。</em></p>
+
+<ul>
+<li>对比对象是<strong>线性探针</strong>（<em>linear probe</em>）基线：冻住 ResNet-50 特征，只在每个数据集上训练一个线性分类头；而 CLIP 这边完全零样本。</li>
+<li>结论：零样本迁移不只在个别数据集上有效。普通物体分类（StanfordCars、Food101 等）表现好；**物体计数（CLEVRCounts）、纹理（DTD）、卫星图（EuroSAT）、医学图像（PatchCamelyon）**等专业或抽象任务明显更弱。</li>
+</ul>
+
+<p><img src="/images/obsidian/6d98fd5154ac.png" alt="CLIP_图6_零样本vs少样本.png" width="440" /><br />
+<em>论文图 6：零样本 CLIP ≈ 同一特征空间上 4-shot 线性分类器的平均水平。</em></p>
+
+<ul>
+<li>zero-shot 与 few-shot 的用法对比：零样本 CLIP 和在<strong>它自己特征上</strong>训练的 4-shot 线性探针相当。</li>
+<li>对很难的任务，还是要给一点样本（<em>few-shot transfer</em>），而不是完全 zero-shot。</li>
+</ul>
+
+<h2>8. 表征学习：线性探针</h2>
+
+<p><img src="/images/obsidian/62497a1fc675.png" alt="CLIP_图10_线性探针对比.png" width="720" /><br />
+<em>论文图 10：线性探针平均分 vs 计算量，CLIP-ViT（红星）在 12 个与 27 个数据集上均最优。</em></p>
+
+<ul>
+<li>3.1 节测 zero-shot 迁移，3.2 节改为测<strong>表征学习</strong>（<em>Representation Learning</em>）质量。</li>
+<li>两种评估方式：
+<ul>
+<li><strong>线性探针</strong>：冻住模型，在提取的特征上训练线性分类器。</li>
+<li><strong>端到端微调</strong>：更灵活，但效果分不清是预训练还是微调的功劳，还需要大量调参。论文选择线性探针，因为它更能反映<strong>与数据集无关的预训练</strong>（<em>dataset-agnostic pre-training</em>）本身学到了什么。</li>
+</ul></li>
+<li>结论：CLIP 的线性探针效果最好，且随算力扩展更高效。</li>
+</ul>
+
+<h2>9. 鲁棒性：分布偏移</h2>
+
+<p><img src="/images/obsidian/e8e1f4f49b8c.png" alt="CLIP_图13_分布偏移鲁棒性.png" width="720" /><br />
+<em>论文图 13：在 ImageNet 上准确率相同（76.2）时，零样本 CLIP 在 ImageNetV2 / R / ObjectNet / Sketch / A 等分布偏移数据集上远好于 ResNet-101。</em></p>
+
+<ul>
+<li>泛化性在这里体现为<strong>稳健性</strong>（robustness）：标准 ImageNet 模型在原分布上高、换分布就掉；零样本 CLIP 曲线更接近理想的 $y=x$。</li>
+<li>例：ImageNet-R（艺术/卡通香蕉）37.7 → 88.9，ImageNet-A（对抗难样本）2.7 → 77.1。</li>
+</ul>
+
+<h2>10. 与人类对比</h2>
+
+<p><img src="/images/obsidian/42bf38ddbcb6.png" alt="CLIP_表2_人类对比.png" width="480" /><br />
+<em>论文表 2：Oxford-IIIT Pets 上人类与 CLIP 的对比。</em></p>
+
+<ul>
+<li>零样本人类 53.7%，零样本 CLIP 93.5%。</li>
+<li>人类只看<strong>一张</strong>样例就升到 75.7%，再多看一张（two-shot）几乎不再提升——人类能高效利用<strong>先验知识</strong>，知道自己哪里不确定；CLIP 的 few-shot 方式还做不到这一点（<em>one-shot / two-shot</em>）。</li>
+</ul>
+
+<h2>11. 局限</h2>
+
+<ul>
+<li>零样本平均水平只是与简单基线（ResNet-50 线性探针）<em>competitive</em>，距离各数据集的 <strong>state of the art</strong> 仍有明显差距。</li>
+<li>处理不了<strong>抽象和系统性任务</strong>（<em>abstract and systematic tasks</em>），如计数。</li>
+<li>只能从给定的类别里<strong>选</strong>，不能像 image captioning 那样<strong>生成</strong>新输出。后续工作（如 BLIP）尝试把理解和生成统一起来。</li>
+<li>评测用了 27 个数据集，但测的主要还是分类；复杂任务和视觉概念仍难以评估。</li>
+</ul>
+
+<h2>12. 总结</h2>
+
+<ul>
+<li>把 NLP 中"大规模预训练 + 自然语言接口"的思路<strong>迁移到视觉领域</strong>。</li>
+<li>通过对比预训练，CLIP 在预训练中学会了大量任务，再借助 <strong>prompt</strong> 零样本迁移到下游数据集，<strong>解放了固定类别的分类范式</strong>。</li>
+<li>关键要素：<strong>数据规模（4 亿对）+ 对比目标（高效）+ 自然语言接口（prompt）</strong>。</li>
+</ul>
+
+<blockquote>
+  <p>[!tip] 和机器人 / VLA 的联系<br />
+  CLIP 式的图文对齐表征是后续 VLM 的视觉骨干来源之一（如 SigLIP 也采用图文对比训练），VLA 再在 VLM 之上接动作输出。读 RT-2、OpenVLA、π0 时可以回看这里。</p>
+</blockquote>

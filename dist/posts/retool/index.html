@@ -1,0 +1,143 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="个人主页、项目与学习笔记"><title>ReTool：学习策略性工具调用 · Nathen</title><link rel="stylesheet" href="/style.css?v=552509ee2b5d"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231769aa'/%3E%3Cpath d='M9 8h14v16H9zM12 13h8M12 17h8' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"></head><body><div class="shell"><header class="header"><a class="name" href="/">Nathen</a><nav class="nav" aria-label="主导航"><a href="/">首页</a><a href="/blogs/?v=552509ee2b5d" aria-current="page">博客</a><a href="/projects/?v=552509ee2b5d">项目</a></nav></header><main id="main-content"><a class="back" href="/blogs/?v=552509ee2b5d#agentic-rl">返回Agentic RL</a><p class="eyebrow">Agentic RL · 基础与工具调用</p><h1>ReTool：学习策略性工具调用</h1><p class="lead">2026 年 11 月 24 日 · 学习笔记</p><div class="course-layout"><aside id="course-navigation" class="course-sidebar"><div class="sidebar-heading">本文目录</div><nav aria-label="本文目录"><a class="toc-level-3" href="#section-1">1. 研究问题</a><a class="toc-level-3" href="#section-2">2. 基础概念</a><a class="toc-level-3" href="#section-3">3. Tool Use 的相关概念</a><a class="toc-level-3" href="#section-4">4. Prompt、SFT 与 RL</a><a class="toc-level-3" href="#section-5">5. 工具集成学习与集成学习</a><a class="toc-level-3" href="#section-6">6. 冷启动数据与数据构造</a><a class="toc-level-3" href="#section-7">7. Code Interpreter 与 Sandbox</a><a class="toc-level-3" href="#section-8">8. Policy LLM 与 Agent Loop</a><a class="toc-level-3" href="#section-9">9. Rollout（轨迹采样）</a><a class="toc-level-3" href="#section-10">10. PPO 与 ReTool 的区别</a><a class="toc-level-3" href="#section-11">11. Reward、Advantage、Actor-Critic</a><a class="toc-level-3" href="#section-12">12. verl 框架</a><a class="toc-level-3" href="#section-13">13. 两种 Prompt 的区别</a><a class="toc-level-3" href="#section-14">14. 总结</a></nav><nav class="local-toc"><a href="/blogs/?v=552509ee2b5d#agentic-rl">返回Agentic RL</a></nav></aside><div class="course-main"><article class="prose course-note"><h2 id="section-1">1. 研究问题</h2>
+
+<p>ReTool 研究如何通过强化学习，让 LLM 学会策略性使用外部工具。传统 Text-Based RL 主要训练 LLM 通过文字推理解决问题。ReTool 在 Rollout 中加入真实 Python 执行，使模型能够结合文字推理、代码计算和工具反馈完成任务。<br />
+<strong>核心区别</strong>：不是完全用代码替代文字推理，而是通过 RL 学习什么时候自己推理，什么时候调用 Python，以及如何处理工具反馈。</p>
+
+<h2 id="section-2">2. 基础概念</h2>
+
+<p><strong>Reasoning 与 Inference</strong><br />
+- <strong>Reasoning（逻辑推理）</strong>：根据已知信息进行分析、计算和推导，得到结论。<br />
+- <strong>Inference（模型推断）</strong>：运行训练完成的模型，通过前向传播生成输出 Token。Reasoning 可以发生在 Inference 过程中，但两者不等价。<br />
+<strong>Structured Problem Solving</strong>：结构化问题求解是将复杂问题拆解为有明确逻辑关系的步骤，逐步得到答案。例如数学题可以经过公式推导、数值计算、结果验证三个阶段。<br />
+<strong>Text-Only Reasoning</strong>：纯文本推理指模型主要通过自身生成的文本和数学表达式解决问题，不调用外部计算工具。<br />
+<strong>Metacognitive Control</strong>：元认知控制是对自身推理过程进行判断和管理。在 ReTool 中表现为：判断是否需要调用 Python；决定哪些步骤自己推理；根据代码执行结果调整后续步骤；判断何时停止并输出答案。</p>
+
+<h2 id="section-3">3. Tool Use 的相关概念</h2>
+
+<p><strong>Strategic Tool Use</strong>：策略性工具使用指模型能够规划工具的调用时机、调用方式、调用次数及反馈处理。例如：文字分析 → 判断需要计算 → 调用 Python → 检查结果 → 继续推理 → 最终答案。<br />
+<strong>Adaptive Tool Selection</strong>：自适应工具选择指根据当前任务和已有反馈动态决定下一步是否使用工具。ReTool 主要提供 Python 解释器，因此重点是选择“继续文字推理”还是“调用 Python”，而不是在大量不同工具之间选择。<br />
+<strong>Heuristic Strategy</strong>：启发式策略是人工预先制定的经验规则，例如“遇到复杂计算就调用 Python”“工具报错后最多重试三次”。这种规则通常不需要学习，但不保证最优。ReTool 则通过 RL 从最终任务奖励中学习工具使用策略，而不是完全依赖固定规则。</p>
+
+<h2 id="section-4">4. Prompt、SFT 与 RL</h2>
+
+<p><strong>Prompt</strong>：Prompt 告诉 LLM 可以使用什么工具，以及应该如何调用。例如规定 Python 代码必须写在 <code>&lt;code&gt;</code> 标签中，工具结果使用 <code>&lt;interpreter&gt;</code> 标签，最终答案使用 <code>&lt;answer&gt;</code> 标签。Prompt 本身不更新模型参数。<br />
+<strong>Supervised Fine-Tuning（SFT）</strong>：SFT 使用示范训练模型，更新 LLM 权重。例如训练样本包含：问题 → 文字推理 → Python 代码 → 执行结果 → 最终答案。模型通过模仿示范，学习工具调用格式和常见行为。<strong>局限</strong>：模型容易受到示范数据分布的影响。<br />
+<strong>模仿专门整理的数据分布</strong>：数据分布是训练数据中不同问题、动作和工具使用方式的统计规律。如果示范中大部分数学题都会调用 Python，模型可能学到过度调用工具的倾向。SFT 能够泛化，但主要优化的是模仿示范，而不是直接优化最终任务成功率。<br />
+<strong>Tool-Integrated RL</strong>：工具集成强化学习允许 LLM 在训练期间真正调用工具，并根据最终答案的奖励更新策略参数。<strong>SFT 学习示范行为，RL 优化任务表现。</strong></p>
+
+<h2 id="section-5">5. 工具集成学习与集成学习</h2>
+
+<ul>
+<li><strong>Tool-Integrated Learning</strong>：将外部工具调用及反馈融入训练过程。</li>
+<li><strong>Ensemble Learning（集成学习）</strong>：组合多个模型的预测，例如 Bagging、Boosting、Random Forest。两者不是同一概念。</li>
+</ul>
+
+<h2 id="section-6">6. 冷启动数据与数据构造</h2>
+
+<p><img src="/images/obsidian/46b6c2a30456.png" alt="ReTool_图8_数据整理模板.png" width="560" /></p>
+
+<blockquote>
+  <p>Data Curation Prompt：将已有纯文本数学推理转换成包含 Python 代码、真实解释器输出和最终答案的训练示范。<br />
+  <strong>Cold-Start Data</strong>：冷启动数据是 RL 开始前，用于让模型掌握初始能力的训练示范。ReTool 先利用这些数据进行 SFT，再进入 RL 阶段。<br />
+  <strong>Synthetic Data</strong>：合成数据可以由程序或其他模型自动生成，不要求人类逐条标注。例如可以：<br />
+  1. 准备数学问题和已有推理。<br />
+  2. 将适合计算的部分转换成 Python。<br />
+  3. 实际执行代码。<br />
+  4. 检查执行结果与答案。<br />
+  5. 保留合格示范。<br />
+  合成数据可以提供有效训练信号，但需要控制正确性、多样性和数据质量。<br />
+  <strong>Code-Augmented Reasoning</strong>：代码增强推理指在文本推理过程中加入可执行代码，例如：文字分析 → Python 计算 → 读取输出 → 文字推导答案。它不是把全部推理转换成代码，而是让代码处理适合执行的步骤。<br />
+  <strong>Long Reasoning Trajectory</strong>：长篇推理轨迹记录从输入问题到最终答案的完整过程，包括多轮文字分析、代码调用和反馈。轨迹不只是最终答案，而是整个交互过程。</p>
+</blockquote>
+
+<h2 id="section-7">7. Code Interpreter 与 Sandbox</h2>
+
+<p><strong>Code Interpreter（CI）</strong>：CI = Code Interpreter，代码解释器。它负责执行 LLM 生成的 Python 代码，并返回计算结果或错误信息。这里的 CI 不是 Continuous Integration。<br />
+<strong>Sandbox（沙箱）</strong>：沙箱是受到安全和资源限制的代码执行环境。它限制文件、网络、内存、运行时间等权限，但不代表只能使用固定函数。LLM 可以在允许范围内调用 Python 内置函数、使用可用的 Python 库、编写自定义函数。<strong>LLM 决定写什么代码，Sandbox 只负责执行。</strong><br />
+<strong>与固定工具 API 的区别</strong><br />
+- <strong>Code Interpreter</strong>：LLM 可以自由组合代码及函数，但受到运行环境约束。<br />
+- <strong>固定 Tool API</strong>：LLM 必须调用预先定义的工具及参数。</p>
+
+<h2 id="section-8">8. Policy LLM 与 Agent Loop</h2>
+
+<p>Policy LLM 就是正在训练的 LLM，概念上对应 Actor。同一个 Policy LLM 负责：<br />
+1. 文字推理。<br />
+2. 生成 Python 代码。<br />
+3. 接收解释器反馈。<br />
+4. 继续推理或再次调用。<br />
+5. 输出最终答案。<br />
+不是一个 LLM 推理，另一个 Policy LLM 学习。简化执行逻辑：</p>
+
+<pre><code>for step in range(max_steps):
+    response = llm.generate(messages)
+    if response.type == &quot;tool_call&quot;:
+        result = sandbox.execute(response.code)
+        messages.append(result)
+    elif response.type == &quot;final&quot;:
+        return response.answer
+    else:
+        messages.append(response.text)
+</code></pre>
+
+<p>这里是 Agent Loop 的逻辑示意，实际需要接入 LLM 和沙箱。<strong>关键区别</strong>：人工启发式由程序写死什么时候调用 Python；ReTool 由 Policy LLM 通过学习决定调用时机和代码内容。</p>
+
+<h2 id="section-9">9. Rollout（轨迹采样）</h2>
+
+<p><img src="/images/obsidian/01de4711eee1.png" alt="ReTool_图2_文本RL与ReTool_RL.png" width="680" /></p>
+
+<blockquote>
+  <p>Text-Based RL vs ReTool RL：普通 RL 只生成文本；ReTool 在生成期间调用 Python 沙箱，将执行结果插入上下文，并继续生成。<br />
+  Rollout 是使用当前策略实际执行一次任务，记录完整交互过程。<br />
+  - 普通 Text-Based RL：Question → Text Reasoning → Answer → Reward。<br />
+  - ReTool：Question → Text Reasoning → Code → Interpreter Feedback → Text Reasoning → Answer → Reward。<br />
+  同一道题可能生成不同的 Rollout：直接推理并回答；调用一次 Python 后回答；代码报错、修复后再回答。Rollout 主要负责采样和收集训练轨迹；模型权重在后续训练更新阶段改变。</p>
+</blockquote>
+
+<h2 id="section-10">10. PPO 与 ReTool 的区别</h2>
+
+<p>ReTool 主要改变的是 <strong>PPO 的 Rollout 生成方式</strong>，而不是 PPO 的核心优化公式。PPO 目标：<br />
+$$J_{\mathrm{PPO}}(\theta)=\mathbb E\left[\min\left(r_t(\theta)\hat A_t,\,\operatorname{clip}(r_t(\theta),1-\epsilon,1+\epsilon)\hat A_t\right)\right]$$<br />
+其中 $r_t(\theta)$ 是当前策略与旧策略生成动作的概率比，$\hat A_t$ 是 Advantage，$\epsilon$ 是 PPO 的裁剪参数。ReTool 让策略的条件上下文包含真实工具反馈。<strong>训练时需要区分两类 Token</strong>：<br />
+- LLM 生成的文字、代码、答案：属于 Policy 的输出，可以参与策略优化。<br />
+- Python 返回的执行结果：属于环境反馈，不应该作为 LLM 自己生成的动作来计算策略损失。</p>
+
+<h2 id="section-11">11. Reward、Advantage、Actor-Critic</h2>
+
+<p><strong>Reward</strong>：Reward 评价最终任务结果，例如答案正确得到正奖励，错误得到负奖励。它可以通过规则计算，不一定需要 Reward Model。<br />
+<strong>Advantage</strong>：Advantage 衡量当前动作或轨迹相对于基准表现的好坏，指导策略更新。<br />
+<strong>Actor 与 Critic</strong><br />
+- <strong>Actor</strong>：Policy LLM，负责生成推理内容和工具调用。<br />
+- <strong>Critic</strong>：如果训练算法使用价值网络，则负责估计状态价值。<br />
+- <strong>Reward</strong>：外部提供的任务表现评价。<br />
+Policy LLM 在 Rollout 中生成最终答案后，由训练程序计算 Reward 和 Advantage，再通过 PPO 更新同一个 Policy LLM 的权重。</p>
+
+<h2 id="section-12">12. verl 框架</h2>
+
+<p>verl 是用于大语言模型强化学习的开源训练框架，负责组织 Rollout、Reward 与 Advantage 计算、PPO / GRPO 等训练算法、模型参数更新与分布式训练。需要区分：<br />
+- <strong>PPO</strong>：强化学习优化算法。<br />
+- <strong>vLLM</strong>：高性能 LLM 推理引擎。<br />
+- <strong>verl</strong>：组织强化学习训练流程的框架。<br />
+- <strong>Code Sandbox</strong>：实际执行代码的工具环境。</p>
+
+<h2 id="section-13">13. 两种 Prompt 的区别</h2>
+
+<p><img src="/images/obsidian/506a0bcaecf6.png" alt="ReTool_图7_RL_Rollout模板.png" width="480" /></p>
+
+<blockquote>
+  <p>RL Rollout Prompt Template：规定训练期间模型如何生成代码、接收反馈以及输出最终答案。Data Curation Prompt Template 见第 6 节图，用于构建冷启动数据，将已有文字推理转换成代码增强的示范轨迹。<br />
+  - <strong>Data Curation Prompt</strong>：用于准备 SFT 训练数据。<br />
+  - <strong>RL Rollout Prompt</strong>：用于 RL 阶段的实时生成与工具交互。<br />
+  两者本身都只是 Prompt，不直接更新模型权重。</p>
+</blockquote>
+
+<h2 id="section-14">14. 总结</h2>
+
+<p><strong>ReTool = 合成冷启动数据 + SFT + 工具集成 Rollout + PPO。</strong> 核心机制：<br />
+1. 通过合成示范和 SFT，让 LLM 初步掌握 Python 工具使用。<br />
+2. RL 期间，同一个 Policy LLM 既可以文字推理，也可以生成代码。<br />
+3. Python 沙箱执行代码，将真实结果返回 LLM。<br />
+4. LLM 根据反馈继续推理，最终输出答案。<br />
+5. 训练程序根据答案计算 Reward、Advantage，并更新 Policy LLM 权重。<br />
+<strong>主要区别不在 PPO 算法，而在训练时真正将工具交互接入 Rollout。</strong><br />
+一句话总结：ReTool 让 LLM 不再只能通过文字推理完成任务，而是通过强化学习获得文字推理与 Python 工具调用相结合的决策能力。</p>
+</article></div></div><button class="course-menu-button" aria-controls="course-navigation" aria-expanded="false">☰ 目录</button><script>const courseMenu=document.querySelector('.course-menu-button');const courseSidebar=document.querySelector('.course-sidebar');courseMenu.addEventListener('click',()=>{const open=courseMenu.getAttribute('aria-expanded')!=='true';courseMenu.setAttribute('aria-expanded',String(open));courseSidebar.classList.toggle('is-open',open);});courseSidebar.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}));document.addEventListener('keydown',e=>{if(e.key==='Escape'){courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}});</script><script>window.MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js"></script></main><footer class="footer"><span>© 2026 Nathen</span><span>学习、构建与记录。</span></footer></div></body></html>

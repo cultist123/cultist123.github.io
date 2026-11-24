@@ -1,0 +1,114 @@
+<h2>61 编码器-解码器架构</h2>
+
+<p><img src="/images/obsidian/1d89c2798130.svg" alt="d2l_61_编码器解码器.svg" width="420" /><br />
+- <strong>编码器</strong>：把变长输入序列 → 固定形状的<strong>编码状态</strong>（处理输入）<br />
+- <strong>解码器</strong>：把编码状态 → 变长输出序列；也可以接收额外输入（如上一步生成的词）<br />
+- 本质是一个<strong>接口/抽象</strong>，CNN 也能看成编码器（特征提取）+ 解码器（分类头）</p>
+
+<pre><code>class EncoderDecoder(nn.Module):
+    def forward(self, enc_X, dec_X, *args):
+        enc_outputs = self.encoder(enc_X, *args)
+        dec_state = self.decoder.init_state(enc_outputs, *args)  # 编码输出 → 解码器初始状态
+        return self.decoder(dec_X, dec_state)
+</code></pre>
+
+<h2>62 序列到序列学习（seq2seq）</h2>
+
+<p><img src="/images/obsidian/fa04377d86ea.svg" alt="d2l_62_seq2seq训练.svg" width="520" /><br />
+<strong>结构</strong>：两个独立的 RNN（参数不共享，都参与训练）<br />
+- <strong>编码器 RNN</strong>：读入整句源语言，不需要输出，只要最后的隐状态（可以是双向、多层）<br />
+$$\mathbf{h}_t = f(\mathbf{x}_t, \mathbf{h}_{t-1}),\qquad \mathbf{c} = \mathbf{h}_T$$<br />
+- <strong>解码器 RNN</strong>：自回归逐词生成，从 <code>&lt;bos&gt;</code> 开始，生成 <code>&lt;eos&gt;</code> 停止<br />
+$$\mathbf{s}_{t&#x27;} = g(y_{t&#x27;-1}, \mathbf{c}, \mathbf{s}_{t&#x27;-1})$$<br />
+- 上下文 $\mathbf{c}$ 怎么传给解码器：<br />
+  1. 编码器最后时刻隐状态 → <strong>初始化</strong>解码器隐状态（要求两边层数、隐藏单元数相同）<br />
+  2. $\mathbf{c}$ 在<strong>每个时间步</strong>和解码器输入词嵌入 <strong>concat</strong> 一起喂进去<br />
+<strong>关键细节</strong><br />
+- <strong>Embedding 层</strong>：词表大小 × embed_size 的矩阵，词索引 $i$ → 取第 $i$ 行作为词向量<br />
+- <strong>Teacher forcing（强制教学）</strong>：训练时解码器输入用<strong>真实标签</strong>（<code>&lt;bos&gt;</code> + 去掉最后一个词的目标句），不是自己的预测<br />
+- <strong>预测</strong>：只能用上一步自己的预测作为下一步输入（贪心取 argmax，更好的方式见束搜索）<br />
+<img src="/images/obsidian/041056452c55.svg" alt="d2l_62_seq2seq预测.svg" width="520" /><br />
+- <strong>Masked 损失</strong>：句子被 <code>&lt;pad&gt;</code> 填充到同长，填充位置的损失要乘 0 过滤掉（<code>sequence_mask</code> + <code>MaskedSoftmaxCELoss</code>）<br />
+<strong>形状速记</strong>（GRU，batch=4，steps=7，hidden=16，layers=2）<br />
+- 编码器 <code>output</code>: (num<em>steps, batch, num</em>hiddens)；<code>state</code>: (num<em>layers, batch, num</em>hiddens)<br />
+- 解码器输出: (batch, num<em>steps, vocab</em>size)<br />
+<strong>BLEU</strong>：衡量生成序列和标签的 n-gram 匹配度，完全一致为 1<br />
+$$\text{BLEU} = \exp\left(\min\left(0, 1 - \frac{\mathrm{len}_{\text{label}}}{\mathrm{len}_{\text{pred}}}\right)\right) \prod_{n=1}^k p_n^{1/2^n}$$<br />
+- $p_n$：预测中 n-gram 的精度（匹配数 / 预测中 n-gram 总数）<br />
+- 前面的指数项：<strong>惩罚过短</strong>的预测（短句容易精度高）<br />
+- $p_n^{1/2^n}$：<strong>长 n-gram 权重更大</strong>（越长越难匹配）<br />
+- 例：标签 ABCDEF，预测 ABBCD → $p_1=4/5,\ p_2=3/4,\ p_3=1/3,\ p_4=0$</p>
+
+<h2>66 使用注意力机制的 seq2seq（Bahdanau 注意力）</h2>
+
+<p><strong>动机</strong>：普通 seq2seq 每一步都用<strong>同一个</strong> $\mathbf{c}$（整句压缩成一个向量），但翻译某个词时只和源句<strong>对应位置</strong>的词最相关 → 让每个解码步自己去"看"源句的不同部分。<br />
+<img src="/images/obsidian/21cd48e48a86.svg" alt="d2l_66_注意力seq2seq.svg" width="520" /><br />
+$$\mathbf{c}_{t&#x27;} = \sum_{t=1}^T \alpha(\mathbf{s}_{t&#x27;-1}, \mathbf{h}_t)\, \mathbf{h}_t$$<br />
+- <strong>Query</strong>：解码器上一步的隐状态 $\mathbf{s}_{t&#x27;-1}$（"我现在要翻译什么"）<br />
+- <strong>Key = Value</strong>：编码器<strong>每个时间步</strong>最后一层的输出 $\mathbf{h}_t$<br />
+- $\alpha$：加性注意力打分 + softmax（用 <code>valid_lens</code> 屏蔽 pad）<br />
+- 和 62 的唯一区别：固定 $\mathbf{c}$ → 每步变化的 $\mathbf{c}_{t&#x27;}$；只需要<strong>重写解码器</strong>，编码器不变</p>
+
+<pre><code>for x in X:                                          # 解码器逐时间步
+    query = hidden_state[-1].unsqueeze(1)             # (batch,1,h) 上一步最后一层隐状态
+    context = self.attention(query, enc_outputs, enc_outputs, enc_valid_lens)
+    x = torch.cat((context, x.unsqueeze(1)), dim=-1)  # 注意力输出 ⊕ 词嵌入
+    out, hidden_state = self.rnn(x.permute(1, 0, 2), hidden_state)
+</code></pre>
+
+<ul>
+<li>因为每一步的 query 依赖上一步结果，解码器要写成 for 循环，训练比普通 seq2seq 慢</li>
+<li>注意力权重热图可视化：每个输出词对应关注源句不同位置（近似"对齐"）<br />
+<h2>67 自注意力（Self-Attention）+ 位置编码</h2></li>
+</ul>
+
+<p><strong>自注意力</strong>：Query、Key、Value <strong>都来自同一个序列</strong> $\mathbf{X}$，输出长度不变<br />
+$$\mathbf{y}_i = f(\mathbf{x}_i, (\mathbf{x}_1, \mathbf{x}_1), \ldots, (\mathbf{x}_n, \mathbf{x}_n))$$<br />
+→ 每个词都直接看整句所有词，得到带上下文的新表示。代码就是 <code>attention(X, X, X, valid_lens)</code>。<br />
+<strong>CNN / RNN / 自注意力对比</strong>（序列长 $n$，维度 $d$，卷积核 $k$）<br />
+<img src="/images/obsidian/21213fc6707e.svg" alt="d2l_67_CNN_RNN_自注意力对比.svg" width="520" /></p>
+
+<table>
+<thead>
+<tr>
+  <th></th>
+  <th>计算复杂度</th>
+  <th>并行度（顺序操作）</th>
+  <th>最大路径长度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>CNN</td>
+  <td>$O(knd^2)$</td>
+  <td>$O(1)$</td>
+  <td>$O(n/k)$</td>
+</tr>
+<tr>
+  <td>RNN</td>
+  <td>$O(nd^2)$</td>
+  <td>$O(n)$</td>
+  <td>$O(n)$</td>
+</tr>
+<tr>
+  <td>自注意力</td>
+  <td>$O(n^2d)$</td>
+  <td>$O(1)$</td>
+  <td>$O(1)$</td>
+</tr>
+</tbody>
+</table>
+
+<p>- 自注意力：可并行 + 任意两词一步直达（长距离依赖好学）<br />
+- 代价：复杂度是 $n^2$，<strong>序列很长时很慢</strong><br />
+<strong>位置编码</strong>：自注意力本身<strong>不感知顺序</strong>（打乱输入顺序，输出只是跟着打乱）→ 把位置信息直接<strong>加到</strong>输入上：$\mathbf{X} + \mathbf{P}$<br />
+$$p_{i,2j} = \sin\left(\frac{i}{10000^{2j/d}}\right),\qquad p_{i,2j+1} = \cos\left(\frac{i}{10000^{2j/d}}\right)$$<br />
+- $i$：词在序列中的位置（行）；$2j, 2j+1$：编码维度（列）<br />
+- <strong>绝对位置</strong>：类似二进制编码，低维频率高、高维频率低，每个位置得到唯一的编码，且是连续浮点数<br />
+- <strong>相对位置</strong>：位置 $i+\delta$ 的编码 = 位置 $i$ 的编码乘一个<strong>只和 $\delta$ 有关</strong>的 2×2 旋转矩阵（$\omega_j = 1/10000^{2j/d}$）<br />
+$$\begin{bmatrix} \cos\delta\omega_j &amp; \sin\delta\omega_j \\ -\sin\delta\omega_j &amp; \cos\delta\omega_j \end{bmatrix}\begin{bmatrix} p_{i,2j} \\ p_{i,2j+1} \end{bmatrix} = \begin{bmatrix} p_{i+\delta,2j} \\ p_{i+\delta,2j+1} \end{bmatrix}$$<br />
+  → 模型更容易学到"两个词相隔多远"</p>
+
+<blockquote>
+  <p><strong>四课串起来</strong>：编码器-解码器（接口）→ seq2seq（用两个 RNN 实现，整句压成一个 $\mathbf{c}$）→ 加注意力（每步动态取 $\mathbf{c}_{t&#x27;}$，但仍是 RNN）→ 自注意力（干脆不用 RNN，序列自己对自己做注意力 + 位置编码）→ 下一课 Transformer</p>
+</blockquote>

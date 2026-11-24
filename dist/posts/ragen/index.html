@@ -1,0 +1,234 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="个人主页、项目与学习笔记"><title>RAGEN：多轮 Agent 强化学习与训练稳定性 · Nathen</title><link rel="stylesheet" href="/style.css?v=552509ee2b5d"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231769aa'/%3E%3Cpath d='M9 8h14v16H9zM12 13h8M12 17h8' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"></head><body><div class="shell"><header class="header"><a class="name" href="/">Nathen</a><nav class="nav" aria-label="主导航"><a href="/">首页</a><a href="/blogs/?v=552509ee2b5d" aria-current="page">博客</a><a href="/projects/?v=552509ee2b5d">项目</a></nav></header><main id="main-content"><a class="back" href="/blogs/?v=552509ee2b5d#agentic-rl">返回Agentic RL</a><p class="eyebrow">Agentic RL · 多轮优化与训练系统</p><h1>RAGEN：多轮 Agent 强化学习与训练稳定性</h1><p class="lead">2026 年 11 月 24 日 · 学习笔记</p><div class="course-layout"><aside id="course-navigation" class="course-sidebar"><div class="sidebar-heading">本文目录</div><nav aria-label="本文目录"><a class="toc-level-3" href="#section-1">1. 研究背景与核心问题</a><a class="toc-level-3" href="#section-2">2. Agentic RL 的基本概念</a><a class="toc-level-3" href="#section-3">3. 现有 Agent 方法与局限</a><a class="toc-level-3" href="#section-4">4. StarPO 与 RAGEN 的关系</a><a class="toc-level-3" href="#section-5">5. StarPO：轨迹级强化学习</a><a class="toc-level-4" href="#section-6">5.1 与传统单轮 RL 的区别</a><a class="toc-level-4" href="#section-7">5.2 State-Thinking-Action-Reward</a><a class="toc-level-4" href="#section-8">5.3 多轮轨迹构造</a><a class="toc-level-3" href="#section-9">6. StarPO 的训练流程</a><a class="toc-level-4" href="#section-10">6.1 Rollout 生成与模型更新</a><a class="toc-level-4" href="#section-11">6.2 训练数量</a><a class="toc-level-3" href="#section-12">7. StarPO 的模块化优化：PPO 与 GRPO</a><a class="toc-level-4" href="#section-13">7.1 PPO：Critic 估计 Advantage</a><a class="toc-level-4" href="#section-14">7.2 GRPO：组内奖励计算 Advantage</a><a class="toc-level-3" href="#section-15">8. Echo Trap：训练退化现象</a><a class="toc-level-3" href="#section-16">9. StarPO-S：稳定化训练</a><a class="toc-level-4" href="#section-17">9.1 基于奖励方差的轨迹过滤</a><a class="toc-level-4" href="#section-18">9.2 Critic 与 Advantage 估计</a><a class="toc-level-4" href="#section-19">9.3 调整 KL 与 Clipping</a><a class="toc-level-3" href="#section-20">10. Rollout 设计对训练效果的影响</a><a class="toc-level-3" href="#section-21">11. 为什么轨迹级 RL 不一定提升推理能力？</a><a class="toc-level-3" href="#section-22">12. 论文贡献与局限</a><a class="toc-level-3" href="#section-23">13. 总结</a></nav><nav class="local-toc"><a href="/blogs/?v=552509ee2b5d#agentic-rl">返回Agentic RL</a></nav></aside><div class="course-main"><article class="prose course-note"><p>论文：https://arxiv.org/abs/2504.20073</p>
+
+<h2 id="section-1">1. 研究背景与核心问题</h2>
+
+<p>传统 LLM 强化学习主要针对数学、代码等静态任务，通常通过单轮生成答案并计算 Reward 来优化模型。但交互式智能体（Interactive Agent）需要在动态环境中连续做出决策，并根据环境反馈调整行为。<br />
+主要挑战包括：<br />
+- <strong>Long-Horizon Decision Making（长时程决策）</strong>：需要连续执行多个步骤，前面的决策影响后续结果。<br />
+- <strong>Stochastic Environment Feedback（随机环境反馈）</strong>：同一个动作可能得到不同结果，智能体必须根据反馈调整策略。<br />
+- <strong>Memory Across Turns（跨轮记忆）</strong>：需要保留之前的观察、推理、动作和反馈。<br />
+- <strong>Self-Evolution（自我演化）</strong>：通过成功和失败的经验改善未来的决策策略，而不仅是完成当前任务。<br />
+<strong>核心问题</strong>：如何让 LLM 通过多轮环境交互进行 RL 训练，同时避免长轨迹和随机反馈造成训练不稳定、策略退化和推理能力下降？</p>
+
+<h2 id="section-2">2. Agentic RL 的基本概念</h2>
+
+<p><strong>Interactive Agent（交互式智能体）</strong>：能够持续观察环境、做出决策、执行动作，并根据反馈调整行为的 AI 系统。<br />
+<strong>Reasoning（推理）</strong>：利用已有信息进行多步分析、规划和判断，不等同于简单生成 <code>&lt;think&gt;</code> 文字。<br />
+<strong>Adaptation（自适应）</strong>：根据当前环境变化调整行动。<br />
+<strong>Self-Evolution（自我演化）</strong>：利用积累的经验改进未来行为，可以通过参数更新或策略、记忆更新实现。<br />
+RL 训练通常包含三个环节：<br />
+- <strong>Rollout Generation</strong>：让 Agent 与环境交互，生成执行轨迹。<br />
+- <strong>Reward Assignment</strong>：根据执行结果给轨迹或中间步骤分配奖励。<br />
+- <strong>Trajectory Optimization</strong>：通过 PPO、GRPO 等算法优化产生轨迹的策略。<br />
+整体流程：<strong>生成轨迹 → 计算奖励 → 更新策略 → 生成新轨迹</strong>。<br />
+RL 可以通过奖励反馈强化有效行为，但最终答案正确不代表中间推理正确，因此 RL 不保证一定学到真正有效的推理。</p>
+
+<h2 id="section-3">3. 现有 Agent 方法与局限</h2>
+
+<ul>
+<li><strong>ReAct、Reflexion</strong>：通过思考、行动、观察和反思实现交互式任务执行。</li>
+<li><strong>结构化 Agent</strong>：引入明确的规划、执行和反馈机制。</li>
+<li><strong>Multi-Agent Systems</strong>：多个 Agent 分工协作处理复杂任务。</li>
+<li><strong>通用 Agent 系统</strong>：应用于网页搜索、编程、GUI、游戏和机器人等任务。<br />
+常见测试环境包括：</li>
+<li><strong>Bandit</strong>：单轮随机环境，测试对不确定奖励的适应。</li>
+<li><strong>Sokoban（推箱子）</strong>：多轮确定性环境，测试长时程规划和动作决策。</li>
+<li><strong>FrozenLake（冰湖）</strong>：多轮随机环境，同一个动作可能产生不同结果，测试随机反馈下的决策能力。<br />
+<strong>现有问题</strong>：大多数 LLM RL 方法主要针对静态任务，多轮 Agent RL 中的训练稳定性、推理退化和自我纠错问题仍不充分明确。<br />
+<h2 id="section-4">4. StarPO 与 RAGEN 的关系</h2></li>
+</ul>
+
+<p><img src="/images/obsidian/3e340ee43117.png" alt="Pasted image 20261108175708.png" /><br />
+<strong>StarPO（State-Thinking-Actions-Reward Policy Optimization）</strong> 是面向多轮 Agent 的轨迹级 RL 框架，将状态、推理、动作和奖励组成完整轨迹进行联合优化。<br />
+<strong>RAGEN</strong> 是实现 StarPO 的模块化训练系统，负责环境交互、Rollout 生成、Reward 计算、模型更新和实验评估。<br />
+RAGEN 支持更换环境、奖励函数和 Rollout 策略，用于研究多轮 Agent RL 的稳定性、泛化能力与学习动态。<br />
+<strong>核心区别</strong>：StarPO 定义训练方式，RAGEN 提供实际运行和研究训练过程的系统。</p>
+
+<h2 id="section-5">5. StarPO：轨迹级强化学习</h2>
+
+<h3 id="section-6">5.1 与传统单轮 RL 的区别</h3>
+
+<p>传统单轮 RL：<br />
+$$
+J_{\mathrm{step}}(\theta)=\mathbb E_{x\sim\mathcal D,\;y\sim\pi_\theta(\cdot\mid x)}[R(x,y)]
+$$<br />
+给模型一个问题，生成一次回答，根据回答结果计算奖励。<br />
+StarPO：<br />
+$$
+J_{\mathrm{StarPO}}(\theta)=\mathbb E_{\mathcal M,\;\tau\sim\pi_\theta}[R(\tau)]
+$$<br />
+- $\theta$：LLM 的模型参数。<br />
+- $\mathcal M$：MDP（马尔可夫决策过程），表示交互环境。<br />
+- $\tau$：完整的多轮交互轨迹。<br />
+- $\pi_\theta$：LLM 的决策策略。<br />
+- $R(\tau)$：整条轨迹的累计奖励。<br />
+- $\mathbb E$：不同环境与轨迹上的期望奖励。<br />
+<strong>核心区别</strong>：传统单轮 LLM RL 优化一次回答的结果，StarPO 优化多轮交互轨迹的整体表现。PPO 本身也可以处理多轮任务，StarPO 的重点是将这种轨迹级优化组织成适用于 LLM Agent 的统一框架。</p>
+
+<h3 id="section-7">5.2 State-Thinking-Action-Reward</h3>
+
+<p>每一轮交互包含：<br />
+- <strong>State（$s_t$）</strong>：当前环境状态。<br />
+- <strong>Thinking</strong>：LLM 根据环境状态及历史记录生成推理过程。<br />
+- <strong>Action（$a_t$）</strong>：LLM 输出能够被环境执行的动作。<br />
+- <strong>Reward（$r_t$）</strong>：环境提供的奖励反馈。<br />
+LLM 的完整输出为：<br />
+$$
+a_t^T=\texttt{&lt;think&gt;...&lt;/think&gt;&lt;answer&gt;}a_t\texttt{&lt;/answer&gt;}
+$$<br />
+其中 $a_t^T$ 包含推理文本和动作文本，$a_t$ 是实际被环境执行的动作。<br />
+执行后环境返回新状态 $s_{t+1}$ 与奖励 $r_t$，进入下一轮。</p>
+
+<h3 id="section-8">5.3 多轮轨迹构造</h3>
+
+<p>完整的 $K$ 轮轨迹为：<br />
+$$
+\tau=\{s_0,a_0^T,r_0,s_1,\ldots,a_{K-1}^T,r_{K-1},s_K\}
+$$<br />
+累计奖励：<br />
+$$
+R(\tau)=\sum_{t=0}^{K-1}r_t
+$$<br />
+<strong>重要区别</strong>：推理和动作由 LLM 生成，状态和奖励由环境返回。虽然评价的是整条轨迹，但训练仍通过 LLM 生成 Token 的概率更新模型参数。</p>
+
+<h2 id="section-9">6. StarPO 的训练流程</h2>
+
+<p><img src="/images/obsidian/62d293ba9364.png" alt="Pasted image 20261108175734.png" /></p>
+
+<h3 id="section-10">6.1 Rollout 生成与模型更新</h3>
+
+<p>每次训练从初始状态 $s_0$ 出发，生成 $N$ 条完整轨迹，计算奖励和 Advantage，再更新 Policy。<br />
+整体流程：<strong>Initial State → K-turn Rollout → Trajectory Reward → Advantage Estimation → Policy Update</strong>。<br />
+支持两种轨迹来源：<br />
+- <strong>On-policy</strong>：用当前策略 $\pi_\theta$ 生成新的 Rollout。<br />
+- <strong>Replay Buffer</strong>：复用旧策略 $\pi_{\mathrm{old}}$ 生成的历史轨迹，减少重新采样成本，但需要注意新旧策略的数据分布差异。<br />
+训练循环中，Rollout 生成和策略更新交替执行。</p>
+
+<h3 id="section-11">6.2 训练数量</h3>
+
+<ul>
+<li>$P$：每个训练循环的初始状态数量。</li>
+<li>$N$：每个初始状态生成的轨迹数量。</li>
+<li>$E$：每次梯度更新使用的轨迹 Batch Size。</li>
+<li>$L$：训练循环次数。<br />
+总轨迹数量为 $LPN$，假设全部轨迹参与训练且 Batch 能整除，则梯度更新次数：<br />
+$$
+S=\frac{LPN}{E}
+$$<br />
+例如 $L=10,P=4,N=8,E=16$，总共生成 320 条轨迹，对应 20 次更新。<br />
+<h2 id="section-12">7. StarPO 的模块化优化：PPO 与 GRPO</h2></li>
+</ul>
+
+<p>StarPO 不需要重新设计一种 RL 优化算法，而是可以使用 PPO、GRPO 等方法对多轮轨迹进行 Token 级更新。</p>
+
+<h3 id="section-13">7.1 PPO：Critic 估计 Advantage</h3>
+
+<p>PPO 使用 Critic（Value Model）估计状态价值，为不同 Token 计算 Advantage $A_{i,t}$，其中 $i$ 表示第 $i$ 条轨迹，$t$ 表示其中第 $t$ 个 Token。<br />
+新旧策略的概率比值：<br />
+$$
+\rho_{i,t}=\frac{\pi_\theta(\tau_{i,t}\mid\tau_{i,&lt;t})}{\pi_{\mathrm{old}}(\tau_{i,t}\mid\tau_{i,&lt;t})}
+$$<br />
+PPO 核心优化项：<br />
+$$
+\min\left(\rho_{i,t}A_{i,t},\operatorname{clip}(\rho_{i,t},1-\epsilon,1+\epsilon)A_{i,t}\right)
+$$<br />
+<strong>Clip</strong> 限制策略更新幅度，避免新旧策略之间发生过大变化。PPO 可以为不同 Token 估计不同的 Advantage，但不保证能够准确识别每一步推理的贡献。</p>
+
+<h3 id="section-14">7.2 GRPO：组内奖励计算 Advantage</h3>
+
+<p>GRPO 不需要额外训练 Critic，而是对同一个初始状态生成 $G$ 条轨迹，比较它们的累计奖励：<br />
+$$
+\hat A_{i,t}=\frac{R(\tau_i)-\operatorname{mean}(\{R(\tau_1),\ldots,R(\tau_G)\})}{\operatorname{std}(\{R(\tau_1),\ldots,R(\tau_G)\})}
+$$<br />
+- $R(\tau_i)$：第 $i$ 条轨迹的累计奖励。<br />
+- Mean：组内平均奖励。<br />
+- Std：组内奖励标准差。<br />
+同一条轨迹中参与训练的所有 Token 使用相同的归一化 Advantage。<br />
+例如一组轨迹奖励为 $[10,5,0]$，第一条高于平均奖励，第二条等于平均奖励，第三条低于平均奖励。<br />
+<strong>PPO 与 GRPO 的区别</strong>：PPO 使用 Critic 估计 Token 级 Advantage，GRPO 使用轨迹级奖励在组内计算相对 Advantage。<br />
+<strong>GRPO 的局限</strong>：高奖励轨迹中的错误中间步骤，也可能被整体正向 Advantage 强化，存在 Credit Assignment（贡献归因）问题。</p>
+
+<h2 id="section-15">8. Echo Trap：训练退化现象</h2>
+
+<p>论文发现，多轮 Agent RL 训练容易进入 <strong>Echo Trap（回声陷阱）</strong>：模型逐渐重复相似的推理或行动模式，缺乏有效探索与调整。<br />
+典型现象：<br />
+- <strong>Reward Variance Collapse（奖励方差坍缩）</strong>：不同 Rollout 的奖励突然变得接近，模型难以通过奖励差异区分不同策略。例如奖励从 $[0,1,0,1]$ 变成 $[0,0,0,0]$。<br />
+- <strong>Gradient Spike（梯度尖峰）</strong>：梯度突然变得很大，导致模型参数更新不稳定。<br />
+- <strong>Shallow Reasoning（浅层推理）</strong>：模型重复固定推理模板，甚至生成与实际环境不一致的思考内容。<br />
+奖励方差坍缩和梯度尖峰可能同时出现，但不能简单认为前者必然直接导致后者。<br />
+<strong>核心问题</strong>：轨迹趋于同质化后，RL 的有效比较信号减少，模型可能陷入重复行为和不稳定更新。</p>
+
+<h2 id="section-16">9. StarPO-S：稳定化训练</h2>
+
+<p>StarPO-S 是 StarPO 的稳定化改进，针对 Echo Trap 和训练不稳定问题进行优化。</p>
+
+<h3 id="section-17">9.1 基于奖励方差的轨迹过滤</h3>
+
+<p>对同一个初始状态生成多条 Rollout，计算奖励标准差：<br />
+$$
+U(s_0)=\operatorname{Std}(R(\tau_1),\ldots,R(\tau_N))
+$$<br />
+例如：<br />
+- $[1,1,1,1]$：所有轨迹都成功，奖励方差为 0。<br />
+- $[0,0,0,0]$：所有轨迹都失败，奖励方差为 0。<br />
+- $[1,0,1,0]$：存在成功与失败，奖励方差较高。<br />
+<strong>方法</strong>：根据奖励方差对初始状态对应的轨迹组排序，优先保留高方差的组参与训练，过滤缺乏奖励差异的组。<br />
+<strong>为什么有效？</strong> 高方差意味着同一任务下不同 Rollout 的结果不同，通常能够提供更有区分度的学习信号。但奖励方差只是一个近似指标，并不等于直接测量模型的不确定性。</p>
+
+<h3 id="section-18">9.2 Critic 与 Advantage 估计</h3>
+
+<p>引入 Critic 估计价值，可以为轨迹中的不同 Token 提供更有区分度的 Advantage，并帮助降低训练信号的方差。<br />
+与 GRPO 为整条轨迹分配相同 Advantage 不同，Critic 可以尝试估计不同决策的价值，但仍不能保证准确定位推理错误。</p>
+
+<h3 id="section-19">9.3 调整 KL 与 Clipping</h3>
+
+<ul>
+<li><strong>KL Term Removal</strong>：在相关 PPO 稳定化实验中移除 KL 惩罚，减少策略过度受原始模型约束的情况，鼓励探索。</li>
+<li><strong>Clip-Higher / Asymmetric Clipping</strong>：采用不对称裁剪范围，提高上界，让模型能够更积极地提高有利行为的概率，同时保留下界约束。<br />
+这些方法用于改善训练稳定性和学习效果，但不是所有任务都必然适用。<br />
+<strong>核心思想</strong>：StarPO-S 不改变轨迹级 RL 的基本目标，而是通过提高训练数据的信息量、改进优势估计和调整更新约束来缓解训练退化。<br />
+<h2 id="section-20">10. Rollout 设计对训练效果的影响</h2></li>
+</ul>
+
+<p>论文通过实验发现，Rollout 的构造方式会显著影响多轮 Agent RL：<br />
+- <strong>Diverse Initial States（多样化初始状态）</strong>：从不同位置、环境状态和任务条件开始训练，避免模型只记住固定行为模式。<br />
+- <strong>Moderate Interaction Granularity（中等交互粒度）</strong>：每轮允许适量动作，避免动作过细造成过多交互成本，或过粗而缺少中间反馈。<br />
+- <strong>Frequent Sampling（频繁采样）</strong>：更频繁地使用当前策略生成新 Rollout，减少训练数据与当前策略不匹配的问题。<br />
+<strong>核心结论</strong>：Agent RL 不仅依赖优化算法，还高度依赖 Rollout 的初始状态分布、交互粒度和采样频率。</p>
+
+<h2 id="section-21">11. 为什么轨迹级 RL 不一定提升推理能力？</h2>
+
+<p>论文发现，仅仅使用 <code>&lt;think&gt;</code> 标记要求模型推理，再通过 StarPO 优化最终任务奖励，并不能保证真正有效的推理出现。<br />
+例如机器人推箱子时：<br />
+- 第一步：正确判断方向。<br />
+- 第二步：错误地分析箱子位置。<br />
+- 第三步：碰巧完成任务。<br />
+最终奖励为 1，但中间推理并不完全正确。<br />
+<strong>问题</strong>：Trajectory-Level Reward 主要评价最终结果，难以判断中间每一步推理的质量，因此可能奖励碰巧成功或推理不一致的轨迹。<br />
+<strong>Fine-Grained, Reasoning-Aware Reward（细粒度、感知推理的奖励）</strong>：不仅评价任务是否完成，还要考虑中间状态理解、逻辑判断和动作规划是否合理。<br />
+<strong>重要结论</strong>：RL 可以提高任务成功率，但成功率提高不等于模型一定学会了更可靠的推理。细粒度推理奖励是论文指出的重要研究方向，而非已经彻底解决的问题。</p>
+
+<h2 id="section-22">12. 论文贡献与局限</h2>
+
+<p>主要贡献：<br />
+- <strong>StarPO</strong>：建立统一的多轮轨迹级 Agent RL 框架。<br />
+- <strong>RAGEN</strong>：提供可扩展的 Agent RL 训练与评估系统。<br />
+- <strong>Echo Trap</strong>：识别多轮 RL 中奖励方差坍缩、梯度尖峰和重复行为等退化现象。<br />
+- <strong>StarPO-S</strong>：通过轨迹过滤、Critic 和优化约束调整缓解训练不稳定。<br />
+- <strong>Rollout 分析</strong>：说明初始状态多样性、交互粒度和采样频率的重要性。<br />
+主要局限：<br />
+- 训练稳定性改善不意味着完全消除 Echo Trap。<br />
+- 长时程任务仍存在中间步骤的 Credit Assignment 问题。<br />
+- 轨迹级奖励无法保证推理内容正确，模型可能生成表面合理但实际无效的思考。<br />
+- 随机环境中的学习和泛化仍具有挑战性。</p>
+
+<h2 id="section-23">13. 总结</h2>
+
+<p><strong>RAGEN 的主要贡献不是提出一种完全替代 PPO/GRPO 的新算法，而是搭建多轮 Agent RL 的训练与研究框架，分析其退化现象，并提出稳定化改进。</strong><br />
+三个关键层次：<br />
+- <strong>StarPO：解决如何进行多轮 Agent RL 训练。</strong><br />
+- <strong>RAGEN：解决如何运行、扩展和研究这一训练过程。</strong><br />
+- <strong>StarPO-S：针对 Echo Trap 等退化现象改善训练稳定性。</strong><br />
+最重要的实验发现是：多轮 Agent RL 的效果不仅取决于 PPO/GRPO，还取决于轨迹是否有信息量、Rollout 如何构造，以及奖励是否能有效评价中间推理。<br />
+<strong>一句话：RAGEN 将 LLM RL 扩展到多轮环境交互，揭示了训练退化与推理质量问题，并通过 StarPO-S 和 Rollout 设计改进训练稳定性，但没有彻底解决长时程推理与随机环境反馈中的所有问题。</strong></p>
+</article></div></div><button class="course-menu-button" aria-controls="course-navigation" aria-expanded="false">☰ 目录</button><script>const courseMenu=document.querySelector('.course-menu-button');const courseSidebar=document.querySelector('.course-sidebar');courseMenu.addEventListener('click',()=>{const open=courseMenu.getAttribute('aria-expanded')!=='true';courseMenu.setAttribute('aria-expanded',String(open));courseSidebar.classList.toggle('is-open',open);});courseSidebar.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}));document.addEventListener('keydown',e=>{if(e.key==='Escape'){courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}});</script><script>window.MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js"></script></main><footer class="footer"><span>© 2026 Nathen</span><span>学习、构建与记录。</span></footer></div></body></html>

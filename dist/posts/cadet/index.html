@@ -1,0 +1,141 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="个人主页、项目与学习笔记"><title>CADET：可执行示范与 PCB 布线数据构造 · Nathen</title><link rel="stylesheet" href="/style.css?v=552509ee2b5d"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231769aa'/%3E%3Cpath d='M9 8h14v16H9zM12 13h8M12 17h8' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"></head><body><div class="shell"><header class="header"><a class="name" href="/">Nathen</a><nav class="nav" aria-label="主导航"><a href="/">首页</a><a href="/blogs/?v=552509ee2b5d" aria-current="page">博客</a><a href="/projects/?v=552509ee2b5d">项目</a></nav></header><main id="main-content"><a class="back" href="/blogs/?v=552509ee2b5d#ai-eda">返回AI for EDA</a><p class="eyebrow">AI for EDA</p><h1>CADET：可执行示范与 PCB 布线数据构造</h1><p class="lead">2026 年 11 月 24 日 · 学习笔记</p><div class="course-layout"><aside id="course-navigation" class="course-sidebar"><div class="sidebar-heading">本文目录</div><nav aria-label="本文目录"><a class="toc-level-3" href="#section-1">1. 研究背景与核心问题</a><a class="toc-level-3" href="#section-2">2. 核心贡献与定位</a><a class="toc-level-3" href="#section-3">3. 整体框架</a><a class="toc-level-3" href="#section-4">4. PCB 任务与可执行示范</a><a class="toc-level-3" href="#section-5">6. TryConnect：传统启发式搜索生成示范</a><a class="toc-level-3" href="#section-6">7. Replay Verification（回放验证）</a><a class="toc-level-3" href="#section-7">8. 焊盘数校准</a><a class="toc-level-3" href="#section-8">9. 用生成数据训练 Agent：BC + PPO</a><a class="toc-level-3" href="#section-9">10. 为什么不直接用 TryConnect？</a><a class="toc-level-3" href="#section-10">11. 实验结果与数据价值</a><a class="toc-level-3" href="#section-11">12. 局限与创新性分析</a><a class="toc-level-3" href="#section-12">13. 与相关 PCB 论文的区别</a><a class="toc-level-3" href="#section-13">14. 总结</a></nav><nav class="local-toc"><a href="/blogs/?v=552509ee2b5d#ai-eda">返回AI for EDA</a></nav></aside><div class="course-main"><article class="prose course-note"><p>论文：2026，arXiv:2611.16913</p>
+
+<h2 id="section-1">1. 研究背景与核心问题</h2>
+
+<p>PCB 自动布线需连接每个网络的所有焊盘（Pad），满足 DRC，并尽量减少线长与过孔数。现有 PCB 数据只给最终布线结果，缺少完整的状态—动作轨迹：<br />
+- <strong>最终 PCB</strong>：告诉模型布完后长什么样；<strong>Executable Demonstration</strong>：告诉模型怎样一步步操作得到它。<br />
+- RL 从零训练布线策略探索量大、大量随机动作无效；BC 可借专家示范加速，但前提是有大量可靠示范。</p>
+
+<p><strong>研究问题：如何自动生成大量有合法解的 PCB 任务，并同步生成能在真实布线引擎中回放的动作示范？</strong></p>
+
+<h2 id="section-2">2. 核心贡献与定位</h2>
+
+<p>主要贡献是 <strong>数据生成方法</strong>，不是新 RL 算法：① <strong>Inductive Construction</strong>：逐个生成焊盘，每加一个就验证能否合法布线；② <strong>Executable Demonstrations</strong>：用传统启发式搜索生成布线动作，记录动作序列与状态；③ <strong>Replay Verification</strong>：从所有焊盘固定的初始状态重新执行示范，确保可复现；④ <strong>大规模数据集</strong>：约 100,000 块合成 PCB 及示范；⑤ <strong>BC + PPO 验证</strong>：用数据预训练再 RL 微调，检验数据价值。<br />
+<strong>关键澄清：数据生成阶段不使用 RL</strong>。生成数据 = 随机采样 + 启发式搜索 + PCB 引擎 + 回放验证；训练模型 = BC 预训练 + PPO 微调。<strong>卖点</strong>：把传统布线算法变成可大规模生产可靠任务与动作示范的数据系统。</p>
+
+<h2 id="section-3">3. 整体框架</h2>
+
+<p><img src="/images/obsidian/9dfc1964a33d.png" alt="CADET_fig2.png" /><br />
+(a) 采样 PCB 属性 → 生成新焊盘 → TryConnect 搜索 → 接受或重试 → 保存示范；(b) RouteDemos → BC → PPO → 在真实 PCB 上评测。<br />
+- <strong>阶段一（生成数据，不涉及 RL）</strong>：参考 PCB → 采样参数 → 逐步加焊盘 → TryConnect 搜合法线路 → 记录动作 → Replay 验证 → 数据集。<br />
+- <strong>阶段二（训练策略）</strong>：示范 → BC（学状态—动作映射）→ PPO（与环境交互按奖励改进）→ 最终策略。策略负责解新的布线任务，而不是生成训练板。</p>
+
+<h2 id="section-4">4. PCB 任务与可执行示范</h2>
+
+<p><img src="/images/obsidian/d0f875466518.png" alt="CADET_fig1.png" /><br />
+Figure 1：与 EDA 引擎交互布线。策略观察板状态 $s_t$，从合法动作集 $\mathcal A(s_t)$ 选一个动作 $a_t$（如 <code>make_line(P4)</code>）调用 KiCad 操作；引擎执行（walkaround/shove 绕障放线和过孔），返回 $s_{t+1}$ 及连通性、DRC 结果；奖励 $r_t=\Phi(s_{t+1})-\Phi(s_t)$。<br />
+<strong>Pad</strong> 连接元件引脚的金属区；<strong>Trace</strong> 连接焊盘的铜线；<strong>Via</strong> 连接不同铜层的导电孔。构造阶段程序可增加、拒绝、剪枝焊盘；布线任务阶段所有焊盘位置、网络、约束已固定，Agent 只能布线。<br />
+示范轨迹 $\tau=(s_0,a_0,s_1,\ldots,a_{T-1},s_T)$：$s_0$ 布线前状态，$a_t$ 引擎级操作，$s_T$ 最终结果；$F(s,\tau)$ 表示从 $s$ 依次执行 $\tau$ 得到的状态。<br />
+<strong>为什么要动作轨迹？</strong> 同一最终 PCB 可由不同过程得到：$\tau_1\neq\tau_2,\ F(s_0,\tau_1)=F(s_0,\tau_2)$，只有最终 PCB 无法唯一还原专家操作；CADET 保存可直接用于 BC 的状态—动作序列。##### 5. Inductive Construction（归纳式构造）<br />
+<img src="/images/obsidian/567436af68c0.png" alt="CADET_alg1.png" /><br />
+<strong>5.1 采样属性</strong>：从真实参考数据集 $D_{\mathrm{ref}}$ 估计分布 $q_\psi$，采样板尺寸 $W,H$、网络数 $N$、各网络焊盘数 $P_i$、网络属性与设计约束，使合成板在规模、焊盘密度上接近真实板。<br />
+<strong>5.2 逐步加焊盘</strong>（对第 $i$ 个网络）：随机生成 $p_0$，$S_i=\{p_0\}$ → 在已有焊盘附近提出新焊盘 $p$ → TryConnect 尝试接入 → 成功则 $S_i\leftarrow S_i\cup\{p\}$，$D\leftarrow D\cup\{\tau_p\}$（$\tau_p$ 为连接 $p$ 的轨迹），失败则重采样。<br />
+<strong>意义</strong>：直接法是"随机生成整板 → 搜索布线 → 可能整板无解"；CADET 是"生成一个焊盘 → 立即搜合法连接 → 成功才接受"，<strong>构造问题时同步构造了解</strong>，大幅减少无解任务。</p>
+
+<h2 id="section-5">6. TryConnect：传统启发式搜索生成示范</h2>
+
+<p><img src="/images/obsidian/9c5791076d53.png" alt="CADET_alg2.png" /><br />
+TryConnect 是数据生成用的搜索算法，不是 RL 策略。目标：给定新焊盘 $p$ 和已有网络 $S_i$，找到将 $p$ 接入 $S_i$ 的合法动作序列。<br />
+<strong>流程</strong>：初始化优先队列 → 弹出估计代价最低的动作序列 → 引擎执行 → 检查连通性与 DRC → 已连通且零 DRV 则返回轨迹，否则扩展合法且未访问的状态 → 预算耗尽返回 FAIL。<br />
+<strong>代价</strong>：$f(\tau_p,a)=2(|\tau_p|+1)+\mathbf1_{\mathrm{via}}(a)+\begin{cases}0,&amp;x_a\in S_i\\h(x_a),&amp;\text{否则}\end{cases}$<br />
+其中 $|\tau_p|+1$ 为动作数，$\mathbf1_{\mathrm{via}}$ 表示是否用过孔，$x_a$ 为动作终点，$h(x_a)$ 由网格 Dijkstra 估计剩余连接成本。即偏好动作少、过孔少、离目标近。<strong>注意</strong>：这是人工启发式，不是 RL 学到的价值函数；示范合法但不保证全局最优。</p>
+
+<h2 id="section-6">7. Replay Verification（回放验证）</h2>
+
+<p><strong>为什么需要？</strong> 构造时焊盘逐个加入（加 P1 时 P2、P3 还不存在，加 P2 后原线路可能受影响），而真实任务要求所有焊盘一开始就存在，构造时合法的动作在最终板上未必可执行。<br />
+<strong>过程</strong>：收集所有已接受焊盘构建 $s_0$ → 新开引擎实例、固定全部焊盘 → 依次回放记录动作 → 失效则尝试修复，必要时剪枝相关焊盘 → 检查全网连通与 DRV → 通过者进入 BC 数据：$D_{BC}=\operatorname{Replay}(s_0,D)$。<br />
+<strong>价值</strong>：数据不仅有合法最终板，还有能从固定初始状态实际执行的动作。</p>
+
+<h2 id="section-7">8. 焊盘数校准</h2>
+
+<p>合法性检查、重试预算、Replay 剪枝会使实际焊盘数低于目标：$\hat P=\sum_i\hat P_i&lt;P=\sum_iP_i$。因此放大网络数 $\bar N=\operatorname{round}(\alpha N)$，$\alpha$ 通过试运行对比生成板与参考板的焊盘密度估计，目的是减轻生成偏差、贴近真实分布。</p>
+
+<h2 id="section-8">9. 用生成数据训练 Agent：BC + PPO</h2>
+
+<p><strong>9.1 BC</strong>：$\mathcal L_{BC}(\theta)=-\mathbb E_{(s,a)\sim D_{BC}}\log\pi_\theta(a\mid s)$，提高选择示范动作的概率。<strong>BC 学的是 TryConnect 产生的布线行为，不是学它如何搜索或生成焊盘。</strong><br />
+<strong>9.2 Reward</strong>：势函数 $\Phi(s)=\Phi_{\mathrm{con}}(s)-[f_{\mathrm{drv}}(s)+\lambda_w\ell(s)+\lambda_v n_{\mathrm{via}}(s)]$，即 连通收益 − 违规惩罚 − 线长成本 − 过孔成本；逐步奖励 $r_t=\Phi(s_{t+1})-\Phi(s_t)$，改善 PCB 质量得正奖励。<br />
+<strong>9.3 PPO 微调</strong>：从 $\pi_{\theta_{BC}}$ 出发，加 KL 惩罚 $J(\theta)=J_{\mathrm{PPO}}(\theta)-\beta\mathbb E_s D_{\mathrm{KL}}\left(\pi_\theta(\cdot\mid s)\parallel\pi_{\theta_{BC}}(\cdot\mid s)\right)$，$\beta=0.05$；允许改进同时防止过度偏离 BC 学到的有效行为。<br />
+<strong>9.4 Critic Warm-up</strong>：BC 没训练价值网络，故先预热 Critic，并阻断 Critic 对共享编码器的梯度，避免破坏已学表示。<strong>RL 学的是布线策略，不是生成数据的方法。</strong></p>
+
+<h2 id="section-9">10. 为什么不直接用 TryConnect？</h2>
+
+<p>TryConnect 遇到新板要不断展开、评估候选；策略网络学 $\pi_\theta(a\mid s)$，直接由状态预测下一步动作。</p>
+
+<table>
+<thead>
+<tr>
+  <th>方法</th>
+  <th>主要作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>TryConnect</td>
+  <td>搜索合法走线，生成专家示范</td>
+</tr>
+<tr>
+  <td>BC</td>
+  <td>模仿示范中的布线动作</td>
+</tr>
+<tr>
+  <td>PPO</td>
+  <td>自主交互，按奖励改善策略</td>
+</tr>
+<tr>
+  <td>最终策略 $\pi_\theta$</td>
+  <td>在新 PCB 上直接布线决策</td>
+</tr>
+</tbody>
+</table>
+
+<p>学习策略潜在优势是省去每次从头搜索、通过训练得到更好决策；是否更快更优需实验验证，不能仅凭架构断言。</p>
+
+<h2 id="section-10">11. 实验结果与数据价值</h2>
+
+<p>真实 PCB 测试中完整布通且零 DRV 成功率：<strong>随机初始化 PPO 38.0% → CADET BC+PPO 67.2%（+29.2 pp）</strong>，支持"CADET 示范做 BC 预训练能为 PPO 提供更好初始化"。<br />
+需注意：BC+PPO 有额外的数据生成与预训练成本；成功示范不一定最优；合成任务与复杂工业 PCB 仍有差距；不等于 RL 已全面超过传统布线器。</p>
+
+<h2 id="section-11">12. 局限与创新性分析</h2>
+
+<ul>
+<li><strong>传统算法依赖</strong>：模型可能继承搜索器偏好；数据受搜索器可解范围限制；搜索成功≠最优。CADET 没有消除对传统布线器的依赖，而是把它用来生产数据。</li>
+<li><strong>训练成本</strong>：合成构造 + TryConnect + Replay + BC + PPO 交互，评估效率不能只算 PPO 阶段。</li>
+<li><strong>泛化</strong>：统计特征相似≠覆盖工业设计全部复杂约束；真实板提升是泛化证据，但不证明能处理所有工业级 PCB。</li>
+<li><strong>算法创新 vs 系统贡献</strong>：组件（随机采样、Best-First/Dijkstra、BC、PPO、KL 正则）都是已有技术，创新在于组合成可靠的大规模数据生成流水线。<br />
+<h2 id="section-12">13. 与相关 PCB 论文的区别</h2></li>
+</ul>
+
+<table>
+<thead>
+<tr>
+  <th>论文</th>
+  <th>主要研究内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>FanoutNet</td>
+  <td>用 RL 优化芯片引脚扇出位置</td>
+</tr>
+<tr>
+  <td>PCBWorld</td>
+  <td>将 KiCad 封装成真实引擎驱动的 Agent 训练与评测环境</td>
+</tr>
+<tr>
+  <td>PCBRouteAgent</td>
+  <td>多模态 LLM 做全局规划、详细执行协调与失败重规划</td>
+</tr>
+<tr>
+  <td>CADET</td>
+  <td>传统搜索构造 PCB 与可执行示范，再用于 BC + PPO</td>
+</tr>
+</tbody>
+</table>
+
+<p>CADET 定位是 <strong>数据与训练方法</strong>，不是新的 LLM Agent 架构或 PCB 引擎。</p>
+
+<h2 id="section-13">14. 总结</h2>
+
+<p><strong>CADET = Inductive Construction + TryConnect + Replay Verification + BC + PPO。</strong> ① 数据怎么来：随机采样 + 传统启发式搜索逐步生成焊盘与合法动作，再 Replay 验证；② RL 的作用：不参与数据生成，只在 BC 初始化后在环境中自主布线、按奖励优化。<br />
+<strong>一句话：CADET 不是用 RL 生成数据，而是用传统搜索构造大量有解的 PCB 和动作示范，再用 BC + PPO 把示范转化为可泛化的学习型布线策略。</strong></p>
+</article></div></div><button class="course-menu-button" aria-controls="course-navigation" aria-expanded="false">☰ 目录</button><script>const courseMenu=document.querySelector('.course-menu-button');const courseSidebar=document.querySelector('.course-sidebar');courseMenu.addEventListener('click',()=>{const open=courseMenu.getAttribute('aria-expanded')!=='true';courseMenu.setAttribute('aria-expanded',String(open));courseSidebar.classList.toggle('is-open',open);});courseSidebar.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}));document.addEventListener('keydown',e=>{if(e.key==='Escape'){courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}});</script><script>window.MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js"></script></main><footer class="footer"><span>© 2026 Nathen</span><span>学习、构建与记录。</span></footer></div></body></html>

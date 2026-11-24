@@ -1,0 +1,258 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="个人主页、项目与学习笔记"><title>ACT / ALOHA：动作分块与双臂模仿学习 · Nathen</title><link rel="stylesheet" href="/style.css?v=552509ee2b5d"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231769aa'/%3E%3Cpath d='M9 8h14v16H9zM12 13h8M12 17h8' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"></head><body><div class="shell"><header class="header"><a class="name" href="/">Nathen</a><nav class="nav" aria-label="主导航"><a href="/">首页</a><a href="/blogs/?v=552509ee2b5d" aria-current="page">博客</a><a href="/projects/?v=552509ee2b5d">项目</a></nav></header><main id="main-content"><a class="back" href="/blogs/?v=552509ee2b5d#embodied-ai">返回具身智能</a><p class="eyebrow">具身智能 · 策略与动作生成</p><h1>ACT / ALOHA：动作分块与双臂模仿学习</h1><p class="lead">2026 年 11 月 24 日 · 学习笔记</p><div class="course-layout"><aside id="course-navigation" class="course-sidebar"><div class="sidebar-heading">本文目录</div><nav aria-label="本文目录"><a class="toc-level-3" href="#section-1">1. 研究背景与核心问题</a><a class="toc-level-3" href="#section-2">2. 基础概念：Policy Learning 与 Environment Modeling</a><a class="toc-level-3" href="#section-3">3. 机器人模仿学习（Imitation Learning）</a><a class="toc-level-3" href="#section-4">4. 现有 BC 方法及局限</a><a class="toc-level-3" href="#section-5">5. 数据分布与分布偏移</a><a class="toc-level-3" href="#section-6">6. Policy Interaction 与 Teleoperation</a><a class="toc-level-3" href="#section-7">7. ACT：Action Chunking with Transformers</a><a class="toc-level-3" href="#section-8">8. Action Chunking：动作分块</a><a class="toc-level-3" href="#section-9">9. Temporal Ensembling：时间集成</a><a class="toc-level-3" href="#section-10">10. CVAE：Conditional Variational Autoencoder</a><a class="toc-level-3" href="#section-11">11. ACT 的完整网络架构</a><a class="toc-level-4" href="#section-12">11.1 左侧：CVAE Encoder</a><a class="toc-level-4" href="#section-13">11.2 右侧：动作预测网络</a><a class="toc-level-3" href="#section-14">12. ACT 的训练流程</a><a class="toc-level-4" href="#section-15">12.1 Step 1：采样人类示范数据</a><a class="toc-level-4" href="#section-16">12.2 Step 2：推断潜在变量 z</a><a class="toc-level-4" href="#section-17">12.3 Step 3：预测动作序列</a><a class="toc-level-3" href="#section-18">13. ACT 的测试与实际运行</a><a class="toc-level-3" href="#section-19">14. 论文核心贡献与局限</a><a class="toc-level-3" href="#section-20">15. 总结</a></nav><nav class="local-toc"><a href="/blogs/?v=552509ee2b5d#embodied-ai">返回具身智能</a></nav></aside><div class="course-main"><article class="prose course-note"><h2 id="section-1">1. 研究背景与核心问题</h2>
+
+<p>机器人精细操作（Fine-Grained Manipulation）需要高精度位置控制、接触力协调和闭环视觉反馈。例如穿扎带、插入内存条、操作乒乓球等任务，不仅要求机械臂移动准确，还要在接触物体时控制力度，并根据摄像头反馈持续调整动作。<br />
+传统高精度遥操作设备价格昂贵，论文提出低成本双臂机器人平台 <strong>ALOHA</strong>，并采用 <strong>ACT（Action Chunking with Transformers）</strong> 学习精细操作策略。<br />
+<strong>核心目标</strong>：通过低成本硬件收集人类示范，利用模仿学习训练机器人，使其仅依靠 RGB 图像与关节状态完成复杂的双臂操作。<br />
+<img src="/images/obsidian/81325f50fe45.png" alt="ACT_论文图1_ALOHA硬件.png" width="600" /><br />
+<em>论文图 1：ALOHA 主从遥操作（左）与可完成的精细任务（右），整机成本约 2 万美元。</em></p>
+
+<h2 id="section-2">2. 基础概念：Policy Learning 与 Environment Modeling</h2>
+
+<p><strong>Policy Learning（策略学习）</strong>：学习在当前观察下应该执行什么动作。<br />
+$$
+a_t=\pi_\theta(o_t)
+$$<br />
+例如摄像头发现插头偏左，策略预测机械臂应该向右调整。<br />
+<strong>Environment Modeling（环境建模）</strong>：学习给定当前状态和动作后，环境将如何变化。<br />
+$$
+s_{t+1}=f(s_t,a_t)
+$$<br />
+例如预测机械臂移动后，物体的位置、碰撞和接触力如何变化。<br />
+<strong>为什么直接学习策略通常更简单？</strong> 策略只需要学会如何执行有效动作，而精确环境建模可能需要预测复杂的摩擦、接触、碰撞和运动关系。<br />
+两者不互斥：<br />
+- <strong>Model-Free</strong>：不显式学习环境动态模型，直接学习动作策略。<br />
+- <strong>Model-Based</strong>：利用或学习环境模型，预测动作后果并辅助决策。<br />
+<img src="/images/obsidian/24ace3751cae.svg" alt="ACT_01_策略学习vs环境建模.svg" width="680" /></p>
+
+<h2 id="section-3">3. 机器人模仿学习（Imitation Learning）</h2>
+
+<p><strong>模仿学习</strong>：让机器人通过学习人类示范掌握操作技能，而不是完全依靠试错。<br />
+典型流程：人类操作机器人 → 记录图像、关节状态和动作 → 训练策略网络 → 机器人自主执行。<br />
+主要方法包括：<br />
+- <strong>Behavior Cloning（BC）</strong>：使用监督学习直接模仿专家动作。<br />
+- <strong>DAgger</strong>：让当前策略与环境交互，再由专家纠正错误状态对应的动作，减少分布偏移。<br />
+- <strong>Inverse Reinforcement Learning（IRL）</strong>：从专家示范中推断奖励函数，再据此学习策略。<br />
+- <strong>Action Chunking</strong>：一次预测连续多个动作。<br />
+- <strong>Diffusion Policy</strong>：使用扩散模型学习复杂、多模态的动作分布。<br />
+注意：Action Chunking 和 Diffusion Policy 是策略建模技术，不是与 BC、DAgger 完全平行的模仿学习类别。<br />
+<strong>ACT 本质上属于 Behavior Cloning</strong>，但通过 Transformer、CVAE 和动作分块改进传统 BC。</p>
+
+<h2 id="section-4">4. 现有 BC 方法及局限</h2>
+
+<p>已有研究主要从以下方向改进 BC：<br />
+- <strong>历史信息建模</strong>：利用 Transformer 等网络结合过去的观察和动作，而非只使用当前状态。<br />
+- <strong>训练目标优化</strong>：改变动作预测的损失函数，提高策略学习效果。<br />
+- <strong>正则化</strong>：减少过拟合，提高泛化能力。<br />
+- <strong>多任务与少样本学习</strong>：让一个策略完成多种任务，或利用少量示范掌握新任务。<br />
+- <strong>语言引导</strong>：根据自然语言指令生成操作策略，例如 VLM/VLA 相关方法。<br />
+- <strong>任务结构建模</strong>：利用机器人任务中的空间关系、抓取约束和运动特性。<br />
+这些方法部分借鉴了深度学习和 Transformer 的研究成果，但模仿学习本身并不是从 LLM 发展而来的。</p>
+
+<h2 id="section-5">5. 数据分布与分布偏移</h2>
+
+<p><strong>Data Distribution（数据分布）</strong>：训练数据中各种状态、动作和场景出现的频率与比例。<br />
+例如训练集中 80% 的物体位于桌子中央，15% 位于左边，5% 位于右边，模型可能更擅长处理中央位置的物体。<br />
+<strong>Distribution Shift（分布偏移）</strong>：训练时的数据分布与实际执行时遇到的数据分布不同。<br />
+机器人 BC 容易出现分布偏移：某一步动作发生误差 → 机器人进入示范数据中较少出现的状态 → 后续动作更容易出错 → 误差不断累积。<br />
+<strong>核心问题</strong>：传统 BC 每一步独立预测动作，长时程任务中的预测误差可能不断传播。<br />
+<img src="/images/obsidian/e234571a4e15.svg" alt="ACT_02_分布偏移与误差累积.svg" width="680" /></p>
+
+<h2 id="section-6">6. Policy Interaction 与 Teleoperation</h2>
+
+<p><strong>Policy Interaction（策略交互）</strong>：让当前学到的策略真实地与环境交互，执行动作并收集新数据。<br />
+<strong>Expert Correction（专家纠正）</strong>：机器人执行错误动作时，由人类提供正确动作示范，用于继续训练。<br />
+例如 BC 训练抓杯子 → 机器人实际尝试 → 抓取失败 → 人类纠正 → 将纠正数据加入训练集。<br />
+<strong>Teleoperation（遥操作）</strong>：人类通过手柄、VR 控制器或主从机械臂控制机器人，记录操作过程以收集示范数据。<br />
+遥操作存在成本高、操作不直观、缺乏自然触觉反馈等问题。ALOHA 通过低成本主从机械臂设计降低双臂示范数据的收集成本。<br />
+<img src="/images/obsidian/d0d9244441ac.png" alt="ACT_论文图3_相机与夹爪.png" width="600" /><br />
+<em>论文图 3：前方 / 顶部 / 两个腕部共 4 路相机，以及主端的“手柄+剪刀”结构与定制夹爪。</em></p>
+
+<h2 id="section-7">7. ACT：Action Chunking with Transformers</h2>
+
+<p>ACT 的核心是：<strong>利用模仿学习，让 Transformer 根据当前图像和机器人状态，一次预测未来一段动作，而不是每次只预测一个动作。</strong><br />
+整体流程：<br />
+<strong>RGB Images + Joint Positions → CNN → Transformer Encoder → Transformer Decoder → Action Chunk</strong><br />
+输入：<br />
+- <strong>RGB Images</strong>：4 路摄像头图像，每路 $480\times640\times3$。<br />
+- <strong>Joints</strong>：双臂当前的 14 维关节状态。<br />
+- <strong>Latent Variable $z$</strong>：CVAE 学习的潜在动作风格变量。<br />
+输出：<br />
+$$
+\hat A_t=[\hat a_t,\hat a_{t+1},\ldots,\hat a_{t+k-1}]
+$$<br />
+其中每个 $\hat a_t\in\mathbb R^{14}$，表示双臂关节目标位置，整个 Action Chunk 的形状为 $k\times14$。<br />
+<strong>RGB 如何映射为动作？</strong> CNN 提取物体及环境的视觉特征，Transformer 结合关节状态预测未来的关节目标值，再交给机器人底层控制器执行。不是直接把像素值映射成电机电流，也不是输出自然语言动作。<br />
+<img src="/images/obsidian/71d251924153.png" alt="ACT_论文图10_四路观测.png" width="560" /><br />
+<em>论文图 10：每行一个任务，四列依次为顶部、前方、左腕、右腕相机。</em></p>
+
+<h2 id="section-8">8. Action Chunking：动作分块</h2>
+
+<p>传统 BC 每次预测一个动作，ACT 一次预测连续 $k$ 个动作。<br />
+假设任务需要 100 个动作：<br />
+- 传统 BC：连续预测 100 次。<br />
+- ACT：如果每次完整执行 10 个动作，则只需要 10 次动作块决策。<br />
+有效时域（Effective Horizon）：<br />
+$$
+H_{\mathrm{effective}}\approx\frac{H}{k}
+$$<br />
+<strong>Effective Horizon</strong>：完成一个任务需要进行多少次高层策略决策。Action Chunking 将单步动作决策变成动作块决策，因此在非重叠执行情况下，有效决策时域缩短至原来的 $1/k$。<br />
+<strong>为什么缓解误差累积？</strong> 一次预测连续动作，可以学习动作之间的关联，减少逐步独立决策导致的误差传播。但并不能完全消除执行误差。<br />
+注意：$1/k$ 对应非重叠动作块执行。如果每一步都重新预测并结合 Temporal Ensembling，实际调用策略的次数并不会减少到 $H/k$。<br />
+<img src="/images/obsidian/477c71dd4781.svg" alt="ACT_03_动作分块有效时域.svg" width="680" /></p>
+
+<h2 id="section-9">9. Temporal Ensembling：时间集成</h2>
+
+<p><img src="/images/obsidian/2e3aa1d3239e.png" alt="Screenshot 2026-11-09 at 21.10.44.png" width="468" /><br />
+只有 Action Chunking 时，模型可能执行完整的 $k$ 步后才重新预测：<br />
+t=0：预测 [a0, a1, a2, a3]<br />
+t=4：预测 [a4, a5, a6, a7]<br />
+缺点是动作块内部缺少新的策略反馈，动作块之间也可能出现不连续。<br />
+<strong>Temporal Ensembling</strong>：每个时间步重新观察环境并预测动作块，然后对同一个执行时刻的重叠动作预测加权平均。<br />
+例如 $k=3$：<br />
+t=0：预测 [a0, a1, a2]<br />
+t=1：预测 [b1, b2, b3]<br />
+t=2：预测 [c2, c3, c4]<br />
+在时间 $t=2$，模型存在三个针对当前动作的预测：<br />
+$$
+a_2,\quad b_2,\quad c_2
+$$<br />
+最终动作：<br />
+$$
+\hat a_2=w_1a_2+w_2b_2+w_3c_2,\qquad\sum_iw_i=1
+$$<br />
+论文通过指数形式的权重融合不同时间生成的预测。<br />
+<strong>作用</strong>：减少动作抖动和动作块之间的不连续，同时保留频繁观察并调整动作的能力。<br />
+<strong>区别</strong>：Action Chunking 负责一次预测一段动作；Temporal Ensembling 负责融合不同时间对同一动作的预测。<br />
+<img src="/images/obsidian/ead95d3d73ca.svg" alt="ACT_04_时间集成k3示例.svg" width="680" /></p>
+
+<h2 id="section-10">10. CVAE：Conditional Variational Autoencoder</h2>
+
+<p><strong>CVAE（条件变分自编码器）</strong> 是一种生成模型，用于学习在相同条件下可能存在的多种合理输出。<br />
+例如人类拿杯子时，可能从左侧抓取，也可能从右侧抓取。直接使用单一平均动作可能得到不合理的结果。<br />
+CVAE 通过潜在变量 $z$ 表示示范动作中的变化性：<br />
+$$
+A=\operatorname{Decoder}(o_t,q_t,z)
+$$<br />
+- $o_t$：当前视觉观察。<br />
+- $q_t$：当前关节状态。<br />
+- $z$：动作方式的潜在表示。<br />
+- $A$：预测的动作序列。<br />
+<strong>Conditional（条件）</strong>：生成动作时除了 $z$，还需要结合当前图像和机器人关节状态。<br />
+CVAE 的两个核心部分：<br />
+- <strong>Encoder</strong>：训练时输入人类示范动作与关节状态，预测潜在变量的概率分布。<br />
+- <strong>Decoder</strong>：根据视觉、关节状态和 $z$ 生成未来动作块。<br />
+这里的 $z$ 是连续特征向量，不一定对应某种能直接解释的动作类别。</p>
+
+<h2 id="section-11">11. ACT 的完整网络架构</h2>
+
+<p><img src="/images/obsidian/ff445d9c5459.png" alt="ACT_论文图4_架构.png" width="700" /><br />
+<em>论文图 4：左为 CVAE 编码器（仅训练用），右为策略（CVAE 解码器）。</em></p>
+
+<h3 id="section-12">11.1 左侧：CVAE Encoder</h3>
+
+<p>训练时输入：<br />
+<strong>[CLS] + Joints + Human Action Sequence</strong><br />
+- <strong>[CLS]</strong>：用于汇总输入序列的特殊可学习 Token。<br />
+- <strong>Joints</strong>：14 维，经过线性层映射为 512 维。<br />
+- <strong>Action Sequence</strong>：$k\times14$，每个动作映射为 512 维。<br />
+- <strong>Positional Embedding</strong>：表示动作在序列中的先后顺序。<br />
+这些数据进入一个 4 层 Transformer Encoder，输出潜在分布参数：<br />
+$$
+\mu_z,\quad\sigma_z\in\mathbb R^{32}
+$$<br />
+通过重参数化采样：<br />
+$$
+z=\mu_z+\sigma_z\odot\epsilon,\qquad \epsilon\sim\mathcal N(0,I)
+$$<br />
+<strong>重参数化的作用</strong>：将随机性转移到 $\epsilon$，使梯度能够通过采样过程反向传播到 Encoder。</p>
+
+<h3 id="section-13">11.2 右侧：动作预测网络</h3>
+
+<p>输入：<strong>4 路 RGB 图像 + Joints + z</strong><br />
+视觉部分：<br />
+- ResNet18 提取图像特征。<br />
+- 将视觉特征展开为 Token，并映射到 Transformer 使用的 512 维空间。<br />
+- 添加位置编码，保留图像特征的空间位置信息。<br />
+机器人状态：<br />
+- Joints：$14\rightarrow512$ 维。<br />
+- $z$：$32\rightarrow512$ 维。<br />
+模型结构：<br />
+- <strong>Transformer Encoder（4 层）</strong>：通过 Self-Attention 融合视觉、关节状态和潜在变量。<br />
+- <strong>Transformer Decoder（7 层）</strong>：使用固定位置查询，通过 Cross-Attention 从 Encoder 输出中提取信息，并预测未来 $k$ 个动作。<br />
+最终输出：<br />
+$$
+\hat A\in\mathbb R^{k\times14}
+$$<br />
+<strong>两个 Encoder 的区别</strong>：<br />
+- CVAE Encoder：学习人类示范动作中的潜在变化性，只在训练阶段使用。<br />
+- Policy Transformer Encoder：理解当前环境与机器人状态，在训练和实际执行时都使用。<br />
+<img src="/images/obsidian/5f49bb9cf26d.png" alt="ACT_论文图11_详细架构.png" width="700" /><br />
+<em>论文图 11：ACT 详细架构（含各模块维度）。</em></p>
+
+<h2 id="section-14">12. ACT 的训练流程</h2>
+
+<h3 id="section-15">12.1 Step 1：采样人类示范数据</h3>
+
+<p>从 Demo Dataset 中采样：<br />
+- 4 张 RGB 图片。<br />
+- 当前 14 维 Joints。<br />
+- 后续 $k$ 步的动作序列，形状为 $k\times14$。</p>
+
+<h3 id="section-16">12.2 Step 2：推断潜在变量 z</h3>
+
+<p>将人类示范动作与当前关节状态输入 CVAE Encoder，预测 $\mu_z$ 和 $\sigma_z$，再使用重参数化采样得到 $z$。</p>
+
+<h3 id="section-17">12.3 Step 3：预测动作序列</h3>
+
+<p>将 RGB 图像、Joints 和 $z$ 输入策略网络：<br />
+<strong>ResNet18 → Transformer Encoder → Transformer Decoder → Predicted Action Chunk</strong><br />
+训练时将预测动作与人类示范动作进行比较。<br />
+主要训练目标：<br />
+$$
+\mathcal L_{\mathrm{ACT}}=\mathcal L_{\mathrm{reconstruction}}+\beta\mathcal L_{\mathrm{KL}}
+$$<br />
+- <strong>Reconstruction Loss</strong>：让预测动作接近人类示范动作，ACT 使用 L1 动作重建损失。<br />
+- <strong>KL Loss</strong>：约束 CVAE 学到的潜在分布接近标准正态分布，避免潜在空间过度分散。<br />
+- $\beta$：控制 KL 项的权重。<br />
+<strong>训练目标</strong>：让策略既能准确模仿人类动作，也能学习示范动作中存在的不同变化模式。</p>
+
+<h2 id="section-18">13. ACT 的测试与实际运行</h2>
+
+<p>训练完成后，不再需要人类示范动作，也不再运行 CVAE Encoder。<br />
+测试输入：<br />
+- 当前 4 路 RGB 图片。<br />
+- 当前 14 维关节状态。<br />
+- 固定潜在变量 $z=0$。<br />
+执行流程：<br />
+<strong>RGB Images + Joints + z=0 → CNN → Transformer Encoder → Decoder → Future Action Chunk → Robot Controller</strong><br />
+虽然 CVAE 在训练时学习动作分布，但 ACT 实际推理通常使用固定零向量 $z$，使策略产生确定性的动作预测。<br />
+如果启用 Temporal Ensembling，机器人每个时间步重新预测一个动作块，并融合重叠预测后执行。<br />
+<img src="/images/obsidian/f7fa7bd55372.svg" alt="ACT_05_训练与推理信息流.svg" width="700" /></p>
+
+<h2 id="section-19">14. 论文核心贡献与局限</h2>
+
+<p><strong>主要贡献</strong><br />
+- <strong>ALOHA</strong>：低成本双臂遥操作硬件平台，降低高质量操作示范的收集成本。<br />
+- <strong>ACT</strong>：通过 Transformer 一次预测未来多个动作，降低长时程任务的决策难度。<br />
+- <strong>CVAE</strong>：对人类示范中的动作变化进行建模。<br />
+- <strong>Temporal Ensembling</strong>：融合重叠动作预测，提高执行平滑性。<br />
+<img src="/images/obsidian/a88f3163a2cd.png" alt="ACT_论文图8_消融.png" width="700" /><br />
+<em>论文图 8：(a) 动作分块对基线也有效；(b) 时间集成的影响；(c) 去掉 CVAE 后从人类数据学习明显变差；(d) 遥操作 5 Hz vs 50 Hz 的完成时间。</em><br />
+<strong>主要局限</strong><br />
+- 依赖人类示范数据的数量、质量与分布。<br />
+- 对训练数据中没有充分覆盖的新环境、新物体或动作可能泛化不足。<br />
+- 直接学习动作策略并不意味着模型理解完整物理规律。<br />
+- 细粒度接触操作仍可能受到视觉遮挡、感知误差和缺少显式力反馈等因素影响。</p>
+
+<h2 id="section-20">15. 总结</h2>
+
+<p><strong>ALOHA 解决如何以较低成本收集双臂精细操作示范，ACT 解决如何从这些示范中学习连续动作策略。</strong><br />
+关键技术关系：<br />
+- <strong>Behavior Cloning</strong>：整体学习范式，用人类示范监督训练机器人。<br />
+- <strong>ResNet18</strong>：将 RGB 图像转换为视觉特征。<br />
+- <strong>Transformer</strong>：融合多模态输入并生成未来动作块。<br />
+- <strong>CVAE</strong>：学习人类示范中的动作变化性。<br />
+- <strong>Action Chunking</strong>：一次预测多步动作，减小有效决策时域。<br />
+- <strong>Temporal Ensembling</strong>：对重叠动作预测加权平均，提高动作连续性。<br />
+<strong>一句话：这篇论文通过低成本双臂机器人平台收集人类操作示范，再利用 CVAE + Transformer + Action Chunking 学习从视觉和关节状态到连续双臂动作的映射，使机器人能够模仿人类完成精细操作任务。</strong></p>
+</article></div></div><button class="course-menu-button" aria-controls="course-navigation" aria-expanded="false">☰ 目录</button><script>const courseMenu=document.querySelector('.course-menu-button');const courseSidebar=document.querySelector('.course-sidebar');courseMenu.addEventListener('click',()=>{const open=courseMenu.getAttribute('aria-expanded')!=='true';courseMenu.setAttribute('aria-expanded',String(open));courseSidebar.classList.toggle('is-open',open);});courseSidebar.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}));document.addEventListener('keydown',e=>{if(e.key==='Escape'){courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}});</script><script>window.MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js"></script></main><footer class="footer"><span>© 2026 Nathen</span><span>学习、构建与记录。</span></footer></div></body></html>

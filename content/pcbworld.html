@@ -1,0 +1,359 @@
+<p>论文：2026，arXiv:2607.05915</p>
+
+<h2>1. 研究背景与问题</h2>
+
+<p>PCB（Printed Circuit Board，印刷电路板）布线需要连接不同电子元件的焊盘，同时满足设计规则并优化线路质量。<br />
+传统自动布线器（Autorouter）主要使用规则和启发式搜索算法，例如优先选择短路径、遇到障碍绕行、调整布线层等。<br />
+传统方法能够自动完成大量常规走线，但复杂、高约束的量产 PCB 通常仍需要人工调整与验证。<br />
+现有 AI 布线方法主要分为两类：<br />
+- <strong>直接布线（Direct Routing）</strong>：Agent 自己决定局部走线动作，例如在二维网格中逐格移动。问题是动作序列长、几何表达有限，与真实 PCB 工具存在差距。<br />
+- <strong>间接布线（Indirect Routing）</strong>：Agent 只决定网络顺序、布线模式或扇出位置，具体几何全部交给固定自动布线器。性能受到该布线器能力和搜索空间的限制。<br />
+<strong>核心问题</strong>：如何让 RL 和 LLM Agent 直接使用真实 PCB 设计引擎，并在统一环境中训练、交互和评测？</p>
+
+<h2>2. PCBWorld 的核心贡献</h2>
+
+<p>PCBWorld 并没有重新实现一个 PCB 布线引擎，而是将真实的 KiCad 引擎封装为 Agent 可以调用的交互环境。<br />
+主要贡献：<br />
+- <strong>Engine-Grounded Environment</strong>：使用 KiCad 原生 C++ 引擎执行实际布线操作和设计规则检查。<br />
+- <strong>统一 Agent 接口</strong>：支持传统搜索算法、RL Agent 和 Tool-Using LLM Agent。<br />
+- <strong>PCBWorld-Bench</strong>：提供合成和真实 PCB 任务，支持使用统一协议和工程指标比较不同策略。<br />
+- <strong>闭环交互</strong>：每一步操作后返回更新的 PCB 状态和反馈，允许 Agent 持续修正布线。<br />
+<strong>Engine-Grounded</strong> 的关键不只是调用工具，而是让每一步状态变化和设计规则验证都由真实工程引擎完成。</p>
+
+<h2>3. Engine-Grounded 交互机制</h2>
+
+<p><img src="/images/obsidian/4769e1c289bb.png" alt="PCBWorld_图1_总览.png" width="680" /></p>
+
+<blockquote>
+  <p>论文图 1：Agent 观察 PCB，通过 GUI 或 API 调用 KiCad 引擎，获得更新后的电路板状态，并根据逐步反馈继续布线。左侧未连接数为 2（P3、P4），调用 <code>make_track(P3,P4)</code> 后未连接数变为 0。</p>
+</blockquote>
+
+<p>基本流程：<br />
+Observation → Agent Decision → Native API Action → KiCad Engine → Updated Board / Feedback → Next Observation<br />
+例如：<br />
+1. PCB 上 P1、P2 已连接，P3、P4 未连接。<br />
+2. Agent 选择连接 P3 和 P4。<br />
+3. 调用 <code>make_track(P3, P4)</code> 一类原生操作。<br />
+4. KiCad 引擎尝试布线并更新设计。<br />
+5. Agent 根据结果决定下一步。</p>
+
+<h3>3.1 Engine、GUI 与 API</h3>
+
+<ul>
+<li><strong>Engine</strong>：软件内部实际执行布线、几何计算和设计规则检查的核心程序。</li>
+<li><strong>GUI</strong>：人类通过鼠标和键盘操作软件的图形界面。</li>
+<li><p><strong>Native API</strong>：程序直接调用软件提供的功能接口。<br />
+GUI 与 API 可以操作同一套底层引擎。原生 API 交互不需要模拟鼠标，也不需要重新实现引擎。</p>
+
+<h3>3.2 Grid 与 Gridless</h3></li>
+<li><p><strong>Grid</strong>：把 PCB 离散为格子，Agent 逐格选择移动方向。</p></li>
+<li><strong>Gridless</strong>：使用真实引擎的几何坐标与布线机制，不强制沿固定网格移动。<br />
+PCBWorld 的 RL Agent 可以从有限候选点中选择动作，但底层几何仍然是 Gridless。<br />
+<h3>3.3 DRC 与 DRV</h3></li>
+</ul>
+
+<p><img src="/images/obsidian/28c5b5c454bf.png" alt="PCBWorld_图2_PCB核心概念.png" width="560" /></p>
+
+<blockquote>
+  <p>论文图 2：PCB 布线核心概念。同一网络（Net）的焊盘（Pad）必须连通；不同网络的走线靠得太近或交叉就产生 DRV（图中圆圈处）；过孔（Via）让走线换到另一层以避开冲突（Net 3 经 Layer 2 绕行）。</p>
+</blockquote>
+
+<ul>
+<li><strong>DRC（Design Rule Check）</strong>：设计规则检查，例如线宽、间距及不允许的连接冲突。</li>
+<li><strong>DRV（Design Rule Violation）</strong>：违反设计规则的情况。<br />
+理想布线结果应尽可能完成全部连接，并达到零 DRV。<br />
+<h2>4. PCB 布线的约束优化建模</h2></li>
+</ul>
+
+<p>论文将 PCB 布线表示为：<br />
+$$
+s^*=\arg\min_{s\in\mathcal R}
+\lambda_w\ell(s)+\lambda_v n_{\mathrm{via}}(s)
+$$<br />
+$$
+\text{subject to }n_{\mathrm{drv}}(s)=0
+$$<br />
+符号含义：<br />
+- $s$：PCB 的一种布线状态。<br />
+- $\mathcal R$：候选电路板状态集合。<br />
+- $\ell(s)$：总走线长度。<br />
+- $n_{\mathrm{via}}(s)$：过孔数量。<br />
+- $n_{\mathrm{drv}}(s)$：设计规则违规数量。<br />
+- $\lambda_w,\lambda_v$：线长与过孔的权重。<br />
+- $\arg\min$：寻找使目标函数最小的布线方案。<br />
+<strong>Constrained Optimization（约束优化）</strong>：在满足硬性约束的前提下，寻找目标函数最优的方案。<br />
+这里：<br />
+- <strong>硬约束</strong>：$n_{\mathrm{drv}}(s)=0$，不能存在 DRV。<br />
+- <strong>优化目标</strong>：线路尽可能短、过孔尽可能少。<br />
+过孔（Via）用于连接 PCB 不同铜层，增加过孔通常会增加制造成本及相关电气设计负担。</p>
+
+<h2>5. MDP 建模</h2>
+
+<p>PCBWorld 将布线过程建模为 Markov Decision Process：<br />
+$$
+\mathcal M=(S,A,P,R,\gamma)
+$$<br />
+- <strong>State $S$</strong>：当前 PCB 状态，包括元件、焊盘、走线、过孔、网络连通性等。<br />
+- <strong>Action $A$</strong>：选择网络、开始布线、延伸线路、放置过孔等。<br />
+- <strong>Transition $P$</strong>：KiCad 引擎执行动作后产生的状态变化。<br />
+- <strong>Reward $R$</strong>：根据布线质量改善情况计算奖励。<br />
+- <strong>Discount Factor $\gamma$</strong>：控制未来奖励的权重。<br />
+MDP 是通用的序贯决策框架，PCBWorld 的关键是使用真实 KiCad 引擎实现状态转移，而非自己构造简化规则。</p>
+
+<h2>6. Action Space：六种原生布线动作</h2>
+
+<table>
+<thead>
+<tr>
+  <th>动作</th>
+  <th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><code>net_select(net_id)</code></td>
+  <td>选择需要布线的电气网络</td>
+</tr>
+<tr>
+  <td><code>net_end</code></td>
+  <td>释放当前网络</td>
+</tr>
+<tr>
+  <td><code>start_route(p_start)</code></td>
+  <td>从指定点开始布线</td>
+</tr>
+<tr>
+  <td><code>make_line(p_end, routing_mode)</code></td>
+  <td>将当前走线延伸到目标点</td>
+</tr>
+<tr>
+  <td><code>make_via(p_end, routing_mode)</code></td>
+  <td>延伸走线，并在终点放置过孔</td>
+</tr>
+<tr>
+  <td><code>finish(routing_mode)</code></td>
+  <td>尝试自动连接最近的未连接焊盘</td>
+</tr>
+</tbody>
+</table>
+
+<p>Agent 负责选择高层布线动作，KiCad 引擎负责具体几何实现。</p>
+
+<h3>6.1 Routing Modes</h3>
+
+<p><img src="/images/obsidian/bee1d5cc699f.png" alt="PCBWorld_图4_make_line三种模式.png" width="680" /></p>
+
+<blockquote>
+  <p>论文图 4：同一个 <code>make_line</code> 动作，<code>routing_mode</code> 不同，KiCad 引擎生成的走线几何也不同。</p>
+</blockquote>
+
+<p><img src="/images/obsidian/6e7f7a1e8301.png" alt="PCBWorld_图15_障碍交互策略.png" width="680" /></p>
+
+<blockquote>
+  <p>论文附录图 15：<code>set_routing_mode</code> 的三种障碍交互策略对比——<code>mark_as_obstacles</code> 碰到间距冲突就中止，<code>push_n_shove</code> 推开相邻走线，<code>walkaround</code> 保持已有走线不动并绕行。</p>
+</blockquote>
+
+<ul>
+<li><strong>Mark as Obstacles</strong>：将现有线路视为障碍，不主动移动它们。</li>
+<li><strong>Push and Shove</strong>：尝试推动已有线路，为新线路腾出空间。</li>
+<li><strong>Walkaround</strong>：保留已有线路，让新线路绕过障碍。<br />
+例如：<br />
+<code>start_route(P1)</code> → <code>make_line(P2, walkaround)</code><br />
+Agent 只需要指定目标位置与模式，不需要自己计算所有拐角。<br />
+<h3>6.2 候选动作点</h3></li>
+</ul>
+
+<p>KiCad 引擎可以暴露有限候选终点，例如焊盘中心、走线端点和过孔端点。<br />
+- RL Agent 通常从候选集合中选择目标点。<br />
+- LLM Agent 也可以在接口允许时输出自由坐标。<br />
+这种设计减少了直接生成完整连续几何路径的难度，同时保留真实 PCB 的空间结构。</p>
+
+<h2>7. Reward Function：奖励设计</h2>
+
+<h3>7.1 Potential Function（势函数）</h3>
+
+<p>论文定义电路板质量分数：<br />
+$$
+\Phi(s)=-
+\left(
+f_{\mathrm{drv}}(s)+
+\lambda_w\ell(s)+
+\lambda_v n_{\mathrm{via}}(s)
+\right)
+$$<br />
+其中：<br />
+- $f_{\mathrm{drv}}(s)$：DRC 违规惩罚函数。<br />
+- $\ell(s)$：走线长度。<br />
+- $n_{\mathrm{via}}(s)$：过孔数量。<br />
+<strong>理解</strong>：违规、线长和过孔都是成本，因此取负号。成本越小，$\Phi(s)$ 越大。<br />
+论文使用非线性的 DRV 惩罚，尤其强调接近零违规时的改善。<br />
+原来的零 DRV 硬约束在奖励中被转化为惩罚项，较大惩罚可以鼓励合法布线，但不数学保证零违规。</p>
+
+<h3>7.2 Terminal Reward（终局奖励）</h3>
+
+<p>只有任务结束时提供质量改善奖励：<br />
+$$
+r_T=\Phi(s_T)-\Phi(s_0)
+$$<br />
+其中 $s_0$ 为初始 PCB，$s_T$ 为最终 PCB。<br />
+问题：多次布线之后才得到奖励，很难知道哪个动作带来了改善。</p>
+
+<h3>7.3 Per-Step Reward（逐步奖励）</h3>
+
+<p>每次动作后给出：<br />
+$$
+r_t=\Phi(s_{t+1})-\Phi(s_t)
+$$<br />
+如果 PCB 质量提高，奖励为正；质量下降，奖励为负。<br />
+例如：<br />
+- 初始分数 $-100$。<br />
+- 第一步变成 $-70$，奖励 $+30$。<br />
+- 第二步变成 $-80$，奖励 $-10$。</p>
+
+<h3>7.4 Telescoping（望远镜求和）</h3>
+
+<p>当 $\gamma=1$ 时：<br />
+$$
+\sum_{t=0}^{T-1}r_t
+=\sum_{t=0}^{T-1}
+[\Phi(s_{t+1})-\Phi(s_t)]
+=\Phi(s_T)-\Phi(s_0)
+$$<br />
+中间状态的分数相互抵消，因此累计逐步奖励等于终局奖励。<br />
+<strong>Credit Assignment（信用分配）</strong>：判断哪些动作对最终结果产生了贡献。<br />
+逐步奖励为 PPO 等强化学习算法提供更密集的反馈，通常比只在终局提供一个分数更容易学习。</p>
+
+<h2>8. Environment Wrapper：统一 Agent 接口</h2>
+
+<p><img src="/images/obsidian/6fff6269267f.png" alt="PCBWorld_图10_系统架构.png" width="680" /></p>
+
+<blockquote>
+  <p>论文附录图 10：左侧是 Search-Based Router、RL Agent、LLM Agent；右侧环境分成 L1–L4 四层，动作向下传递，状态与奖励向上返回。L1（虚线框）是未修改的 KiCad C++ 引擎，L2–L4 是论文的贡献。</p>
+  
+  <h3>8.1 系统四层架构</h3>
+</blockquote>
+
+<ul>
+<li><strong>L1：KiCad C++ Engine</strong>：负责真实 PCB 数据、Push-and-Shove 增量布线、DRC。</li>
+<li><strong>L2：Python ↔ C++ Binding</strong>：让 Python 能调用底层 C++ 功能。</li>
+<li><strong>L3：Python Wrapper</strong>：封装 58 个步骤级 API，将引擎数据转换成结构化 Python 对象。</li>
+<li><strong>L4：Gymnasium Environment</strong>：提供统一的动作分发、状态观察、奖励计算和动作合法性过滤。<br />
+典型交互：<br />
+<code>Agent → env.step(action) → KiCad → observation / reward → Agent</code><br />
+<strong>Wrapper（包装器）</strong>：负责将复杂引擎功能转换成 Agent 可以使用的接口，本身不是新的决策模型。<br />
+<img src="/images/obsidian/867bc6b11f41.png" alt="PCBWorld_图3_Gym包装器.png" width="680" /><br />
+&gt; 论文图 3：两个 Gym 包装器共享同一个引擎和统一的状态字典，再分别重新编码——RL 得到 token 序列，LLM 得到 S 表达式加工具调用格式。<br />
+<h3>8.2 RL Wrapper</h3></li>
+</ul>
+
+<p>RL 需要适合神经网络处理的数值输入。<br />
+论文将焊盘、走线、过孔、点等对象转换为特征：<br />
+- <strong>Fourier Feature Mapping</strong>：将空间坐标映射为更丰富的位置特征。<br />
+- <strong>Entity-Type Embedding</strong>：编码对象类型，例如焊盘、走线或过孔。<br />
+- <strong>Pointer Network</strong>：从引擎提供的候选点或动作参数中选择目标。<br />
+这样避免让 RL 直接生成所有自由坐标，降低动作空间复杂度。</p>
+
+<h3>8.3 LLM Wrapper</h3>
+
+<p>LLM 使用结构化文本表示 PCB。<br />
+论文采用 <strong>S-expression（S 表达式）</strong>，以嵌套括号表达 PCB 对象和关系。<br />
+主要保留：<br />
+- 坐标。<br />
+- 网络连接关系。<br />
+- 布线层。<br />
+- 有效设计规则约束。<br />
+- 紧凑动作历史及失败操作记录。<br />
+目的：减少无关 Token，同时让 LLM 能理解环境状态和工具反馈。</p>
+
+<h3>8.4 两种 Wrapper 的区别</h3>
+
+<table>
+<thead>
+<tr>
+  <th></th>
+  <th>RL Wrapper</th>
+  <th>LLM Wrapper</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>输入</td>
+  <td>数值特征向量</td>
+  <td>结构化文本</td>
+</tr>
+<tr>
+  <td>决策模型</td>
+  <td>RL 策略网络</td>
+  <td>大语言模型</td>
+</tr>
+<tr>
+  <td>动作生成</td>
+  <td>从候选动作中选择</td>
+  <td>生成结构化工具调用</td>
+</tr>
+<tr>
+  <td>反馈使用</td>
+  <td>状态与奖励</td>
+  <td>状态及工具执行结果</td>
+</tr>
+</tbody>
+</table>
+
+<p>两者使用相同底层 KiCad 引擎。</p>
+
+<h2>9. Benchmark 与 Baseline</h2>
+
+<h3>9.1 Benchmark 数据</h3>
+
+<p>PCBWorld-Bench 包括：<br />
+- <strong>Synthetic PCB</strong>：程序自动生成的合成电路板，可以控制规模与复杂度，适合大量训练。<br />
+- <strong>Real PCB</strong>：679 块真实开源电路板，用于测试真实设计实例上的表现与迁移能力。<br />
+<img src="/images/obsidian/f0d6a38ef5a0.png" alt="PCBWorld_图5c_D2合成板.png" width="320" /> <img src="/images/obsidian/126218bb3aef.png" alt="PCBWorld_图5e_D3-B真实板.png" width="360" /></p>
+
+<blockquote>
+  <p>论文图 5 节选：左为 D2 合成无网格板（4–6 个网络），右为 D3-B 真实开源板（5–42 个网络）。</p>
+</blockquote>
+
+<p>合成数据适合训练和控制实验变量；真实数据有助于检查策略是否只适应简单的人工生成任务。</p>
+
+<h3>9.2 不同类型的 Agent</h3>
+
+<ul>
+<li><strong>Traditional Search-Based Router</strong>：通过人工设计的搜索和启发式规则选择布线动作。</li>
+<li><strong>Grid-Action RL</strong>：在离散网格中逐格决策。</li>
+<li><strong>Engine-Grounded RL</strong>：学习调用真实引擎的布线动作。</li>
+<li><strong>Open-Loop LLM</strong>：一次性生成布线方案，执行过程中不利用中间反馈修改决策。</li>
+<li><strong>Tool-Using LLM Agent</strong>：反复调用工具，根据真实引擎反馈决定下一步。<br />
+<strong>Open-Loop vs Closed-Loop</strong>：</li>
+<li>开环：生成方案 → 执行 → 最后检查。</li>
+<li>闭环：观察 → 动作 → 引擎反馈 → 再观察 → 再动作。<br />
+PCBWorld 的重要特点是支持使用真实引擎反馈进行闭环决策。<br />
+<img src="/images/obsidian/1156f0ddcaba.png" alt="PCBWorld_图8b_LLM引擎参与.png" width="680" /><br />
+&gt; 论文图 8(b)：D3-A 真实板上 LLM Agent 三种引擎参与方式对比——interactive（闭环）&gt; plan-and-execute（开环，但动作经引擎执行）&gt; engine-free（直接写 <code>.kicad_pcb</code> 线段），在 CP 和 Pot. 上对所有 GPT 模型都成立。<br />
+<h3>9.3 评测关注点</h3></li>
+</ul>
+
+<p>论文通过引擎计算的工程指标评价布线质量，核心关注：<br />
+- 连通性及未完成连接。<br />
+- DRC / DRV。<br />
+- 总走线长度。<br />
+- 过孔数量。<br />
+- 合成 PCB 与真实 PCB 上的表现。<br />
+评测不只是判断是否画出一条线，还要衡量设计是否符合工程约束及其质量。<br />
+<img src="/images/obsidian/1b3501d1c9f3.png" alt="PCBWorld_图7_D3-A布线对比.png" width="680" /></p>
+
+<blockquote>
+  <p>论文图 7：三块 D3-A 真实板上各方法的布线结果，每列一种方法；红、蓝分别为两层铜上的走线。</p>
+  
+  <h2>10. 总结</h2>
+</blockquote>
+
+<p><strong>PCBWorld = PCB 布线的 MDP 建模 + KiCad 原生引擎封装 + RL/LLM 交互接口 + 标准化 Benchmark。</strong><br />
+理解这篇论文需要区分：<br />
+- <strong>MDP</strong> 是序贯决策的理论框架。<br />
+- <strong>KiCad Engine</strong> 执行真实布线与状态转移。<br />
+- <strong>Action Space</strong> 决定 Agent 能控制哪些操作。<br />
+- <strong>Reward Function</strong> 衡量动作如何改善 PCB 质量。<br />
+- <strong>Wrapper</strong> 将环境转换成 RL 或 LLM 可使用的形式。<br />
+- <strong>Benchmark</strong> 提供统一的任务、数据与指标来比较不同方法。<br />
+<strong>核心思想</strong>：让 Agent 不再只操作简化网格或调整传统布线器的高层配置，而是能够通过原生 API 逐步控制真实 PCB 设计引擎，并根据每一步的反馈持续改进布线结果。</p>

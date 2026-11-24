@@ -216,3 +216,21 @@ DeepSeek - R1 GPRO增加推理能力
 
 RLHF - PPO
 在于数据库content内容是空,因为要强化学习自己生成
+
+
+## DPO 实现记录
+
+DPO
+核心：不用 reward 模型，直接按答案偏好训练 → 直接看学霸和学渣的答案对比着学
+
+| | PPO | DPO |
+|---|---|---|
+| 流程 | 西瓜是？→ “圆的” +9，“方的” −5 → 向圆的方向调整 | 直接给数据，向圆的方向调整参数 |
+| 数据 | prompt，回答由 Actor 自己生成 | `{"prompt": "西瓜是？", "win": "圆的", "lose": "方的"}` |
+| 模型 | Actor + Critic + Reward + Ref | 只剩 Actor + Ref |
+
+架构上 DPO 直接去掉了 Critic 和 Reward → 大大减少显存占用，提高运算速度
+<img src="/images/obsidian/5e64cfc7b8f6.png" alt="Pasted image 20261104190000.png" width="500" />
+- Ref 和 Actor 分别算 win 和 lose 回答的概率
+- 对比：提高 Actor **相对于 Ref** 生成 win 的程度（同时压低 lose）
+- 对应 loss 里的 $\beta\log\frac{\pi_\theta(y_w|x)}{\pi_{ref}(y_w|x)} - \beta\log\frac{\pi_\theta(y_l|x)}{\pi_{ref}(y_l|x)}$，推导见下面「DPO 数学原理」

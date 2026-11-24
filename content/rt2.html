@@ -1,0 +1,71 @@
+<p>论文：CoRL 2023（https://proceedings.mlr.press/v229/zitkovich23a.html）</p>
+
+<h2>1. RT-2 与 VLA</h2>
+
+<p><strong>RT-2 将预训练视觉语言模型（VLM）扩展为视觉-语言-动作模型（VLA）</strong>：输入相机图像和语言指令，输出机器人可执行的动作。<br />
+- <strong>VLM</strong>：主要理解图像与语言，可以识别物体、回答问题或生成描述。<br />
+- <strong>VLA</strong>：在视觉和语言理解基础上，进一步预测机器人动作。</p>
+
+<p>RT-2 是论文提出并命名的 VLA 路线的重要早期实例；不能仅凭这篇论文断言此前完全没有视觉语言驱动的机器人模型。</p>
+
+<h2>2. 为什么要把机器人动作变成 Token？</h2>
+
+<p>普通 VLM 的输出是文本 Token，而机器人需要位置、旋转和夹爪控制量。RT-2 把连续动作离散化，再表示成类似文本的 Token 序列，让预训练 VLM 沿用原有输出形式预测机器人动作。<br />
+一个动作包含：是否结束、末端执行器三维位置变化、三维旋转变化、夹爪状态等。输出 Token 后，再解码回机器人控制命令。论文格式：<code>terminate Δpos_x Δpos_y Δpos_z Δrot_x Δrot_y Δrot_z gripper_extension</code>，连续维度各均匀离散为 256 个 bin，例如 <code>1 128 91 241 5 101 127</code>。<br />
+<strong>关键点</strong>：动作 Token 并不是自然语言解释，而是经过编码的控制数值。<br />
+<img src="/images/obsidian/1883fba98b33.png" alt="RT2_动作Token去Token化.png" width="520" /></p>
+
+<h2>3. RT-2 的架构、输入与输出</h2>
+
+<p>输入：机器人相机图像 + 语言任务指令。<br />
+模型：从预训练 VLM（如 PaLI-X、PaLM-E）出发，用网页视觉语言数据和机器人示范轨迹共同微调（co-fine-tuning）。<br />
+输出：动作 Token 序列 → 解码为机器人动作 → 在环境中执行；随后读取新的相机观察，形成闭环控制。<br />
+<img src="/images/obsidian/094eff1c881b.png" alt="RT2_图1_整体训练与执行架构.png" width="680" /></p>
+
+<h2>4. 高层规划与低层控制</h2>
+
+<p>传统 <strong>VLM + Robot Controller</strong> 方案中，VLM 往往负责高层语义决策，例如“先拿起杯子”，具体机械臂动作交给独立的低层策略或控制器。<br />
+RT-2 则让同一个模型直接预测低层机器人动作，并利用 VLM 在大规模图文数据中学到的语义知识影响动作选择。<br />
+这不意味着 RT-2 完全不需要机器人本身的硬件控制系统；它输出的是用于驱动执行器的动作命令，而非直接控制电机的全部底层物理环节。</p>
+
+<h2>5. 为什么有更好的泛化能力？</h2>
+
+<p>仅靠机器人示范数据，模型容易局限于见过的物体和任务。RT-2 利用网页图文预训练获得的类别、属性、符号和常识知识，再通过机器人数据学习把这些知识映射成动作。<br />
+例子：即使示范数据没有专门教过“拿起能当锤子的东西”，模型也可能借助语义知识判断石头适合，再执行抓取动作。<br />
+<strong>核心思想</strong>：从互联网视觉语言数据学到的知识，可以迁移到机器人控制任务。</p>
+
+<h2>6. 与 ACT、Diffusion Policy 的区别</h2>
+
+<table>
+<thead>
+<tr>
+  <th>方法</th>
+  <th>主要学习形式</th>
+  <th>主要特点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td><strong>ACT</strong></td>
+  <td>模仿学习，预测一段 Action Chunk</td>
+  <td>使用动作分块，并通过时间集成改善控制平滑性</td>
+</tr>
+<tr>
+  <td><strong>Diffusion Policy</strong></td>
+  <td>通过去噪生成动作序列</td>
+  <td>用扩散过程建模复杂、多模态的动作分布</td>
+</tr>
+<tr>
+  <td><strong>RT-2</strong></td>
+  <td>视觉语言模型预测离散动作 Token</td>
+  <td>将网页语义知识迁移到直接机器人动作预测</td>
+</tr>
+</tbody>
+</table>
+
+<p>三者都可以用于机器人动作生成，但重点不同：<strong>ACT 强调动作分块，Diffusion Policy 强调动作分布建模，RT-2 强调 VLM 语义知识与机器人控制的结合。</strong></p>
+
+<h2>7. 总结</h2>
+
+<p><strong>RT-2 = 预训练 VLM + 网页视觉语言数据与机器人轨迹共同微调 + 动作 Token 化。</strong><br />
+它保留 VLM 的语义理解能力，同时让模型直接输出机器人动作。相比只用 VLM 做高层规划，RT-2 更直接地把视觉语言知识用于低层动作决策；相比 ACT、Diffusion Policy，特色在于语义知识迁移而不是单纯改进动作生成机制。</p>

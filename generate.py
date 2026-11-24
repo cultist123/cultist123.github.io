@@ -15,7 +15,7 @@ def page(title,active,body,path):
     target=root/path;target.parent.mkdir(parents=True,exist_ok=True);target.write_text(text)
 posts=[('java', 'Java', 'threads', 'Java 并发学习笔记', '理解线程、共享状态和同步机制。', [('共享状态', '多个线程访问同一份可变数据时，需要关注可见性与原子性。一个简单的递增操作也可能包含多个步骤。'), ('同步机制', 'synchronized 和锁可以保护临界区。缩小共享状态和临界区范围，通常比增加复杂同步逻辑更容易维护。')]), ('notes', '随笔', 'first-post', '开始记录，慢慢积累', '给这个个人空间的第一篇笔记。', [('为什么写下来', '把一个问题写清楚，常常意味着重新梳理自己的理解。这里会保留学习过程中的问题、尝试和收获。'), ('接下来', '可以从一个技术问题、一个小项目或一次实验开始。每篇文章只需要讲清楚一个具体问题。')])]
 groups='';cats=''
-for cat,label in [('ai','大模型'),('deep-learning','深度学习'),('reinforcement-learning','强化学习'),('systems','分布式系统'),('algorithms','算法'),('java','Java'),('notes','随笔')]:
+for cat,label in [('ai','大模型'),('deep-learning','深度学习'),('reinforcement-learning','强化学习'),('agentic-rl','Agentic RL'),('embodied-ai','具身智能'),('ai-eda','AI for EDA'),('systems','分布式系统'),('algorithms','算法'),('java','Java'),('notes','随笔')]:
     cats+=f'<a href="#{cat}">{label}</a>'
     rows=''.join(f'<article class="row"><time datetime="2026-10-03">2026 年 10 月 3 日</time><h3><a href="/posts/{slug}/">{title}</a></h3></article>' for c,l,slug,title,desc,sections in posts if c==cat)
     if cat=='systems':
@@ -30,7 +30,7 @@ for cat,label in [('ai','大模型'),('deep-learning','深度学习'),('reinforc
         rows='<article class="row"><time datetime="2026-10-24">2026 年 10 月 24 日</time><h3><a href="/posts/heap/">堆 · 文章索引</a></h3></article>'+rows
     if cat=='algorithms':
         rows='<article class="row"><time datetime="2026-10-24">2026 年 10 月 24 日</time><h3><a href="/posts/queue/">队列 · 文章索引</a></h3></article>'+rows
-    if cat in {'ai','deep-learning','reinforcement-learning'}:
+    if cat in {'ai','deep-learning','reinforcement-learning','agentic-rl','embodied-ai','ai-eda'}:
         rows=ai_category_rows(cat)
     groups+=f'<section class="group" id="{cat}"><h2>{label}</h2><div class="list">{rows}</div></section>'
 page('博客','blogs',f'<p class="eyebrow">Writing & notes</p><h1>博客</h1><p class="lead">记录学习、项目与思考。</p><div class="directory"><nav class="categories" aria-label="文章分类"><span>文章分类</span>{cats}</nav><div>{groups}</div></div>','blogs/index.html')

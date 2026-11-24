@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="470" viewBox="0 0 900 470" font-family="PingFang SC, Hiragino Sans GB, Helvetica, sans-serif">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#444"/></marker>
+  </defs>
+  <rect width="900" height="470" fill="#ffffff"/>
+  <!-- TRAIN -->
+  <rect x="15" y="15" width="870" height="230" rx="14" fill="#fbf6ee" stroke="#e0c9a6"/>
+  <text x="35" y="44" font-size="18" font-weight="700" fill="#8a4b14">训练（Training）</text>
+  <rect x="35" y="65" width="170" height="56" rx="10" fill="#fff" stroke="#c48a55"/>
+  <text x="120" y="88" text-anchor="middle" font-size="14">示范动作 A (k×14)</text>
+  <text x="120" y="108" text-anchor="middle" font-size="13" fill="#555">+ 关节 q (14)</text>
+  <rect x="245" y="65" width="150" height="56" rx="10" fill="#f9dcc0" stroke="#c48a55"/>
+  <text x="320" y="88" text-anchor="middle" font-size="14" font-weight="700">CVAE Encoder</text>
+  <text x="320" y="108" text-anchor="middle" font-size="12" fill="#555">4 层 Transformer</text>
+  <rect x="435" y="65" width="150" height="56" rx="10" fill="#fff" stroke="#c48a55"/>
+  <text x="510" y="88" text-anchor="middle" font-size="14">μ_z, σ_z ∈ ℝ³²</text>
+  <text x="510" y="108" text-anchor="middle" font-size="12" fill="#555">z = μ + σ⊙ε</text>
+  <line x1="205" y1="93" x2="243" y2="93" stroke="#444" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="395" y1="93" x2="433" y2="93" stroke="#444" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="510" y1="121" x2="510" y2="150" stroke="#444" stroke-width="2" marker-end="url(#ar)"/>
+  <text x="600" y="98" font-size="13" fill="#b23b2b">→ L_KL（拉向 N(0, I)）</text>
+  <rect x="35" y="152" width="170" height="56" rx="10" fill="#fff" stroke="#6a8fbf"/>
+  <text x="120" y="175" text-anchor="middle" font-size="14">4 路 RGB 图像</text>
+  <text x="120" y="195" text-anchor="middle" font-size="13" fill="#555">+ 关节 q</text>
+  <rect x="245" y="152" width="420" height="56" rx="10" fill="#cfe0f3" stroke="#6a8fbf"/>
+  <text x="455" y="176" text-anchor="middle" font-size="14" font-weight="700">策略（CVAE Decoder）</text>
+  <text x="455" y="196" text-anchor="middle" font-size="12" fill="#333">ResNet18 → Transformer Enc (4) → Transformer Dec (7)</text>
+  <line x1="205" y1="180" x2="243" y2="180" stroke="#444" stroke-width="2" marker-end="url(#ar)"/>
+  <rect x="705" y="152" width="160" height="56" rx="10" fill="#fff" stroke="#6a8fbf"/>
+  <text x="785" y="176" text-anchor="middle" font-size="14">Â (k×14)</text>
+  <text x="785" y="196" text-anchor="middle" font-size="12" fill="#b23b2b">L1(Â, A) 重建损失</text>
+  <line x1="665" y1="180" x2="703" y2="180" stroke="#444" stroke-width="2" marker-end="url(#ar)"/>
+  <text x="455" y="234" text-anchor="middle" font-size="14" fill="#222">L = L_reconst (L1) + β · L_KL　　（论文 β = 10，k = 100）</text>
+  <!-- INFER -->
+  <rect x="15" y="262" width="870" height="190" rx="14" fill="#eef4fb" stroke="#9bb7d8"/>
+  <text x="35" y="291" font-size="18" font-weight="700" fill="#1f4e86">推理（Inference）</text>
+  <rect x="35" y="312" width="170" height="56" rx="10" fill="#f0f0f0" stroke="#bbb" stroke-dasharray="5 4"/>
+  <text x="120" y="336" text-anchor="middle" font-size="14" fill="#888">CVAE Encoder</text>
+  <text x="120" y="356" text-anchor="middle" font-size="12" fill="#888">丢弃，无示范动作</text>
+  <rect x="245" y="312" width="150" height="56" rx="10" fill="#fff" stroke="#6a8fbf"/>
+  <text x="320" y="345" text-anchor="middle" font-size="14">z = 0（先验均值）</text>
+  <rect x="35" y="384" width="170" height="50" rx="10" fill="#fff" stroke="#6a8fbf"/>
+  <text x="120" y="414" text-anchor="middle" font-size="14">当前 4 路 RGB + q</text>
+  <rect x="435" y="340" width="230" height="70" rx="10" fill="#cfe0f3" stroke="#6a8fbf"/>
+  <text x="550" y="370" text-anchor="middle" font-size="14" font-weight="700">同一个策略网络</text>
+  <text x="550" y="392" text-anchor="middle" font-size="12" fill="#333">确定性输出</text>
+  <line x1="395" y1="345" x2="433" y2="360" stroke="#444" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="205" y1="409" x2="433" y2="390" stroke="#444" stroke-width="2" marker-end="url(#ar)"/>
+  <rect x="705" y="312" width="160" height="56" rx="10" fill="#fff" stroke="#6a8fbf"/>
+  <text x="785" y="336" text-anchor="middle" font-size="14">动作块 Â (k×14)</text>
+  <text x="785" y="356" text-anchor="middle" font-size="12" fill="#555">+ 时间集成</text>
+  <rect x="705" y="384" width="160" height="50" rx="10" fill="#fff" stroke="#6a8fbf"/>
+  <text x="785" y="414" text-anchor="middle" font-size="14">底层 PID 控制器</text>
+  <line x1="665" y1="365" x2="703" y2="345" stroke="#444" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="785" y1="368" x2="785" y2="382" stroke="#444" stroke-width="2" marker-end="url(#ar)"/>
+</svg>

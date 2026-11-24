@@ -1,0 +1,203 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="个人主页、项目与学习笔记"><title>多轮 Agentic RL：奖励、信用分配与实践 · Nathen</title><link rel="stylesheet" href="/style.css?v=552509ee2b5d"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231769aa'/%3E%3Cpath d='M9 8h14v16H9zM12 13h8M12 17h8' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"></head><body><div class="shell"><header class="header"><a class="name" href="/">Nathen</a><nav class="nav" aria-label="主导航"><a href="/">首页</a><a href="/blogs/?v=552509ee2b5d" aria-current="page">博客</a><a href="/projects/?v=552509ee2b5d">项目</a></nav></header><main id="main-content"><a class="back" href="/blogs/?v=552509ee2b5d#agentic-rl">返回Agentic RL</a><p class="eyebrow">Agentic RL · 多轮优化与训练系统</p><h1>多轮 Agentic RL：奖励、信用分配与实践</h1><p class="lead">2026 年 11 月 24 日 · 学习笔记</p><div class="course-layout"><aside id="course-navigation" class="course-sidebar"><div class="sidebar-heading">本文目录</div><nav aria-label="本文目录"><a class="toc-level-3" href="#section-1">1. Multi-turn Agentic RL：任务建模</a><a class="toc-level-4" href="#section-2">1.1 策略与动作采样</a><a class="toc-level-4" href="#section-3">1.2 LLM 与环境的交互形式</a><a class="toc-level-3" href="#section-4">2. 多轮 RL 的奖励与信用分配</a><a class="toc-level-4" href="#section-5">2.1 Reward Density</a><a class="toc-level-4" href="#section-6">2.2 Token-Level Credit Assignment</a><a class="toc-level-3" href="#section-7">3. 策略优化：PPO、GRPO、RLOO</a><a class="toc-level-4" href="#section-8">3.1 PPO：Critic + GAE + Clipping</a><a class="toc-level-4" href="#section-9">3.2 GRPO：Group Relative Advantage</a><a class="toc-level-4" href="#section-10">3.3 RLOO：Leave-One-Out</a><a class="toc-level-4" href="#section-11">3.4 Biased vs. Unbiased</a><a class="toc-level-3" href="#section-12">4. 模型先验与训练效果归因</a><a class="toc-level-4" href="#section-13">4.1 Model Prior 与 Multi-turn SFT</a><a class="toc-level-4" href="#section-14">4.2 Multi-turn Formulation vs. Algorithmic Heuristics</a><a class="toc-level-3" href="#section-15">5. 任务难度与结果验证</a><a class="toc-level-4" href="#section-16">5.1 Solving Complexity vs. Verification Complexity</a><a class="toc-level-4" href="#section-17">5.2 Executable Unit Tests vs. Model-Based Proxy Signals</a><a class="toc-level-3" href="#section-18">6. 核心总结</a></nav><nav class="local-toc"><a href="/blogs/?v=552509ee2b5d#agentic-rl">返回Agentic RL</a></nav></aside><div class="course-main"><article class="prose course-note"><p>论文：https://arxiv.org/abs/2510.01132</p>
+
+<h2 id="section-1">1. Multi-turn Agentic RL：任务建模</h2>
+
+<p>多轮 Agent RL 的核心是让 LLM 在环境中持续决策，而不是只完成一次静态问答。<br />
+涉及三种能力：<br />
+- <strong>Long-Horizon Planning</strong>：为长期目标规划多个相互关联的步骤。<br />
+- <strong>Sequential Decision-Making</strong>：根据环境反馈动态决定下一步动作。<br />
+- <strong>Multi-turn Reward Optimization</strong>：优化一系列动作的长期累计奖励。<br />
+需要区分：一次用户查询中多次调用工具，也可能被称为多轮交互，但真正的 Multi-turn Agentic RL 更强调跨步骤决策和长期奖励优化。<br />
+<img src="/images/obsidian/78ff4db4b936.png" alt="MultiTurnRL_图1_研究框架.png" width="680" /><br />
+Figure 1：Multi-turn Agentic RL 研究框架，从 Environment、Multi-turn Policy、Reward 三个维度提出七个研究问题。</p>
+
+<h3 id="section-2">1.1 策略与动作采样</h3>
+
+<p>$$
+\boxed{a_t\sim\pi_\theta(\cdot\mid h_t)}
+$$<br />
+- $h_t$：当前交互历史，包括任务、之前的动作和环境反馈。<br />
+- $\pi_\theta(\cdot\mid h_t)$：给定历史时所有可能动作的概率分布。<br />
+- $\pi_\theta(a_t\mid h_t)$：选择具体动作 $a_t$ 的概率。<br />
+- $\sim$：按概率采样，不一定选择概率最高的动作。</p>
+
+<h3 id="section-3">1.2 LLM 与环境的交互形式</h3>
+
+<p>多轮交互可以表示为 Chat Template：</p>
+
+<pre><code>User: Task + Observation 0
+Assistant: Action 0
+User: Observation 1
+Assistant: Action 1
+...
+</code></pre>
+
+<p>每轮模型生成动作，环境执行后返回新的 Observation、Reward 和 Done，再继续下一轮。<br />
+<strong>训练时：</strong><br />
+- Observation 来自环境，不是模型生成的动作，需要 Mask。<br />
+- 环境奖励可以分配到动作结束 Token <code>&lt;|im_end|&gt;</code>。<br />
+- 一次完整交互形成一条 Rollout（Trajectory）。<br />
+<img src="/images/obsidian/299bc2dfec2e.png" alt="MultiTurnRL_图3_TextWorld示例.png" width="600" /><br />
+Figure 3：TextWorld w2-o3-q4 任务示例。灰色为提示词，粗体为目标，蓝色为观测（User），橙色为动作（Assistant）。</p>
+
+<h2 id="section-4">2. 多轮 RL 的奖励与信用分配</h2>
+
+<h3 id="section-5">2.1 Reward Density</h3>
+
+<ul>
+<li><strong>Sparse Reward</strong>：奖励稀疏，可能只有任务结束时才有奖励。</li>
+<li><strong>Dense Reward</strong>：奖励稠密，中间步骤也能获得反馈。<br />
+稀疏奖励的问题是：最终任务成功或失败，无法直接说明具体哪一步动作值得奖励或惩罚。<br />
+这就是 <strong>Credit Assignment</strong> 问题。<br />
+<h3 id="section-6">2.2 Token-Level Credit Assignment</h3></li>
+</ul>
+
+<p>多轮 PPO 通过 Critic 和 GAE，将后续奖励转化为各个 Token 的 Advantage。<br />
+<strong>TD Error：</strong><br />
+$$
+\boxed{
+\delta_t^i=r_t^i+\gamma V(h_t^{i+1})-V(h_t^i)
+}
+\tag{2}
+$$<br />
+- $r_t^i$：当前 Token 的奖励。<br />
+- $V(h_t^i)$：Critic 预测的当前价值。<br />
+- $\gamma$：折扣因子。<br />
+TD Error 表示当前价值预测与一步奖励加下一状态估计价值之间的差异。<br />
+<strong>GAE（Generalized Advantage Estimation）：</strong><br />
+$$
+\boxed{
+\hat A_t^i=\sum_{l=0}^{L-i}(\gamma\lambda)^l\delta_t^{i+l}
+}
+\tag{3}
+$$<br />
+- $\hat A_t^i$：当前 Token 的优势。<br />
+- $\lambda$：控制后续 TD Error 的衰减程度。<br />
+<strong>核心：即使奖励只出现在动作末尾，GAE 也能将奖励信号传递给前面的 Token。</strong></p>
+
+<h2 id="section-7">3. 策略优化：PPO、GRPO、RLOO</h2>
+
+<h3 id="section-8">3.1 PPO：Critic + GAE + Clipping</h3>
+
+<p>PPO 使用 Critic 和 GAE 估计优势，再通过 Clipped Objective 更新策略：<br />
+$$
+\boxed{
+L^{CLIP}
+=\mathbb E\left[
+\sum_{t,i}
+\min\left(
+\rho_t^i\hat A_t^i,
+\operatorname{clip}(\rho_t^i,1-\epsilon,1+\epsilon)\hat A_t^i
+\right)
+\right]
+}
+\tag{4}
+$$<br />
+新旧策略的概率比：<br />
+$$
+\boxed{
+\rho_t^i=
+\frac{\pi_\theta(a_t^i\mid h_t,a_t^{&lt;i})}
+{\pi_{\theta_{\mathrm{old}}}(a_t^i\mid h_t,a_t^{&lt;i})}
+}
+\tag{5}
+$$<br />
+- $a_t^i$：当前轮的第 $i$ 个 Token。<br />
+- $a_t^{&lt;i}$：当前轮此前生成的 Token。<br />
+- $\rho_t^i$：新旧策略生成该 Token 的概率比。<br />
+- Clipping：限制策略更新幅度。</p>
+
+<h3 id="section-9">3.2 GRPO：Group Relative Advantage</h3>
+
+<p>GRPO 不使用独立 Critic，而是在同一任务下采样多条 Rollout，通过组内奖励统计计算优势：<br />
+$$
+A_i=\frac{R_i-\bar R}{\sigma_R}
+$$<br />
+问题：当前轨迹的奖励也参与组内均值和标准差的计算，可能引入梯度估计偏差。</p>
+
+<h3 id="section-10">3.3 RLOO：Leave-One-Out</h3>
+
+<p>RLOO 使用其他 Rollout 的平均奖励作为基线：<br />
+$$
+\boxed{
+A_i=R_i-\frac{1}{N-1}\sum_{j\ne i}R_j
+}
+$$<br />
+该基线不包含当前轨迹的奖励，因此在独立采样的标准 REINFORCE 设置下，能够保持策略梯度估计无偏。</p>
+
+<h3 id="section-11">3.4 Biased vs. Unbiased</h3>
+
+<p>这里的偏差指 <strong>Policy Gradient Estimation Bias</strong>，即估计梯度的期望是否等于目标的真实梯度。</p>
+
+<table>
+<thead>
+<tr>
+  <th>算法</th>
+  <th>主要特点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>PPO</td>
+  <td>Clipping 等机制可能引入偏差</td>
+</tr>
+<tr>
+  <td>GRPO</td>
+  <td>组内奖励归一化可能引入偏差</td>
+</tr>
+<tr>
+  <td>RLOO</td>
+  <td>Leave-One-Out 基线支持无偏梯度估计</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>有偏不一定效果差</strong>：适当偏差可能降低方差，提高优化稳定性。</p>
+
+<h2 id="section-12">4. 模型先验与训练效果归因</h2>
+
+<h3 id="section-13">4.1 Model Prior 与 Multi-turn SFT</h3>
+
+<ul>
+<li><strong>Model Prior</strong>：模型在 RL 前已有的知识、推理和工具使用能力。</li>
+<li><strong>Multi-turn SFT</strong>：使用专家的多轮交互轨迹进行模仿学习。</li>
+<li><strong>Multi-turn RL</strong>：利用环境反馈和奖励进一步优化策略。<br />
+论文关注：RL 的收益与初始模型能力、先前的 SFT 训练有什么关系。<br />
+<h3 id="section-14">4.2 Multi-turn Formulation vs. Algorithmic Heuristics</h3></li>
+</ul>
+
+<p><strong>Multi-turn Formulation</strong>：将连续环境交互、历史信息和长期奖励建模为统一的 RL 训练问题。<br />
+<strong>Algorithmic Heuristics</strong>：PPO、GRPO 等算法中的 Clipping、优势归一化和价值估计等优化技巧。<br />
+关键问题：性能提升来自多轮 RL 建模本身，还是特定算法技巧？<br />
+我们讨论的实验结论：<br />
+- RLOO 也能带来学习收益，说明多轮 RL 的有效性不完全依赖 PPO 的特殊技巧。<br />
+- PPO 表现更强、更稳定，说明算法的稳定化机制仍然重要。<br />
+<img src="/images/obsidian/32ab403db546.png" alt="MultiTurnRL_PPO与RLOO训练曲线.png" width="600" /><br />
+附录图：Qwen-2.5-1.5B 在 TextWorld w2-o3-q4 上用 PPO 与 RLOO 训练的奖励曲线。PPO 接近 1.0，RLOO 稳定在约 0.4，高于初始水平但明显弱于 PPO。<br />
+<strong>结论：多轮 RL 建模本身有效，但具体策略优化算法会显著影响训练效果。</strong></p>
+
+<h2 id="section-15">5. 任务难度与结果验证</h2>
+
+<h3 id="section-16">5.1 Solving Complexity vs. Verification Complexity</h3>
+
+<ul>
+<li><strong>Solving Complexity</strong>：找到正确解决方案的难度。</li>
+<li><p><strong>Verification Complexity</strong>：验证已有解决方案是否正确的难度。<br />
+例如：修复程序 Bug 可能很难，但验证修复结果可以直接运行测试。</p>
+
+<h3 id="section-17">5.2 Executable Unit Tests vs. Model-Based Proxy Signals</h3></li>
+<li><p><strong>Executable Unit Tests</strong>：实际执行测试，判断代码是否满足测试条件。</p></li>
+<li><strong>Model-Based Proxy Signals</strong>：依赖另一个模型预测或评价结果是否正确。<br />
+区别：前者基于实际执行结果，后者基于近似评价。单元测试也受测试覆盖率限制。<br />
+<img src="/images/obsidian/1e96517c5477.png" alt="MultiTurnRL_图5_SWEGym示例.png" width="600" /><br />
+Figure 5：SWE-Gym getmoto 任务示例，Agent 通过多轮读代码、改代码完成修复，最终由单元测试验证。<br />
+<h2 id="section-18">6. 核心总结</h2></li>
+</ul>
+
+<p>这篇论文重点讨论了 Multi-turn Agentic RL 的实际训练机制：<br />
+1. <strong>多轮建模</strong>：Agent 根据历史和环境反馈进行连续决策。<br />
+2. <strong>信用分配</strong>：通过 TD Error 和 GAE，将长期奖励转化为 Token-Level Advantage。<br />
+3. <strong>策略优化</strong>：PPO、GRPO、RLOO 在优势估计、偏差和训练稳定性方面存在差异。<br />
+4. <strong>性能归因</strong>：多轮 RL 本身能够带来学习收益，但算法技巧也会影响训练效果。<br />
+<strong>核心洞察：多轮 Agent RL 不只是对单轮语言模型应用 RL，而是要处理连续环境交互、跨步骤奖励以及长期决策的策略优化问题。</strong></p>
+</article></div></div><button class="course-menu-button" aria-controls="course-navigation" aria-expanded="false">☰ 目录</button><script>const courseMenu=document.querySelector('.course-menu-button');const courseSidebar=document.querySelector('.course-sidebar');courseMenu.addEventListener('click',()=>{const open=courseMenu.getAttribute('aria-expanded')!=='true';courseMenu.setAttribute('aria-expanded',String(open));courseSidebar.classList.toggle('is-open',open);});courseSidebar.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}));document.addEventListener('keydown',e=>{if(e.key==='Escape'){courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}});</script><script>window.MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js"></script></main><footer class="footer"><span>© 2026 Nathen</span><span>学习、构建与记录。</span></footer></div></body></html>

@@ -1,0 +1,238 @@
+<p>论文：arXiv:2406.09246（https://arxiv.org/abs/2406.09246）<br />
+<img src="/images/obsidian/e73989a91d22.png" alt="OpenVLA_图1_整体概览.png" width="680" /></p>
+
+<h2>1. 视觉运动控制与机器人策略</h2>
+
+<h3>1.1 Visuomotor Control（视觉运动控制）</h3>
+
+<p>机器人根据摄像头获取的视觉信息，预测并执行运动动作。基本流程：图像 → 控制策略 → 机器人动作 → 环境变化 → 新图像。<br />
+VLA 中还会加入语言任务指令：$$a_t=\pi_\theta(I_t,l)$$<br />
+- $I_t$：当前图像。<br />
+- $l$：语言任务指令，例如“拿起红色杯子”。<br />
+- $\pi_\theta$：视觉运动控制策略。<br />
+- $a_t$：机器人动作。</p>
+
+<h3>1.2 Policy（策略）</h3>
+
+<p>Policy 是从状态或观察到动作的映射，决定机器人在当前情况下应该执行什么动作。<br />
+- Policy 不一定通过强化学习训练，也可以通过模仿学习获得。</p>
+
+<h3>1.3 Learning-Based Policy（学习式策略）</h3>
+
+<ul>
+<li><strong>Rule-Based Policy</strong>：人工编写控制规则。</li>
+<li><strong>Learning-Based Policy</strong>：通过训练数据学习观察与动作之间的关系。</li>
+</ul>
+
+<p>OpenVLA 主要使用机器人示范数据进行模仿学习，训练样本为 $(I_t,l,a_t)$，模型学习根据图像和语言指令预测示范动作。</p>
+
+<h3>1.4 Generalist Robot Policy（通用机器人策略）</h3>
+
+<p>用一个模型处理多种任务、物体与环境，而不是为每个任务训练专用模型。例如同一个模型可以根据指令抓取物体、打开抽屉、移动物体。<br />
+- <strong>通用不代表可以直接控制所有机器人</strong>：不同机器人可能有不同的动作空间和控制接口。</p>
+
+<h2>2. VLM 在机器人中的三种使用方式</h2>
+
+<h3>2.1 Representation Learning（表示学习）</h3>
+
+<p>VLM 负责提取视觉和语言特征，不直接输出动作：图像 → 特征提取器 → 特征表示 → 控制策略 → 动作。相关工作：R3M、CLIPort。</p>
+
+<h3>2.2 Modular System（模块化系统）</h3>
+
+<p>VLM 是系统中的一个组件，通常负责高层任务理解或规划。例如：“把杯子放入柜子” → VLM 规划抓取、移动、放置 → 独立控制模块执行。</p>
+
+<h3>2.3 Vision-Language-Action Model（VLA）</h3>
+
+<p>VLA 直接根据图像和语言指令预测机器人动作：图像 + 语言 → VLA → 动作。<br />
+<strong>区别</strong>：<br />
+- 表示学习：提取特征。<br />
+- 模块化系统：高层规划，其他模块执行。<br />
+- VLA：视觉语言理解与动作预测结合在一个模型中。</p>
+
+<h2>3. OpenVLA 的核心设计</h2>
+
+<p><strong>把连续机器人动作编码成语言模型词表中的离散 Token，再直接微调预训练 VLM 来生成动作。</strong></p>
+
+<h3>3.1 与 Octo 的区别</h3>
+
+<ul>
+<li><strong>Octo</strong>：图像 + 指令 → 预训练组件 → 新初始化的策略网络 → 动作。各组件需在机器人训练中学会协同，称为 <strong>Stitch Together（缝合）</strong>。</li>
+<li><strong>OpenVLA</strong>：图像 + 指令 → 预训练 VLM → 动作 Token → 动作。不依赖独立、从零初始化的动作网络，直接微调 VLM 的生成能力。<br />
+<h3>3.2 End-to-End（端到端）</h3></li>
+</ul>
+
+<p>模型直接学习从视觉、语言输入到动作输出的映射。<br />
+- 不代表没有视觉编码器、投影层或动作解码器，这些模块仍然存在，但在统一模型中协同工作。</p>
+
+<h2>4. OpenVLA 模型架构</h2>
+
+<p><img src="/images/obsidian/6da36204bdc0.png" alt="OpenVLA_图2_模型架构.png" width="680" /><br />
+- 图像 → DINOv2 + SigLIP → 特征拼接 → MLP Projector<br />
+- 语言指令 → Llama Tokenizer → Token Embedding<br />
+- 两种表示 → Llama 2 7B → 动作 Token → Action De-Tokenizer → 7D Robot Action</p>
+
+<h3>4.1 Vision Encoder（视觉编码器）</h3>
+
+<p>将图像转换成连续特征向量：$$I\xrightarrow{\text{Vision Encoder}}F_{\text{visual}}$$<br />
+特征向量是一组数字，如 $v=[0.12,-0.35,0.87,\ldots]$，共同编码颜色、形状、纹理和空间结构等信息。<br />
+- 不是每个数字都固定对应某种人类可解释的属性。</p>
+
+<h3>4.2 Vision Backbone（视觉骨干）</h3>
+
+<p>Backbone 强调负责主要视觉特征提取的网络结构，Encoder 强调编码功能。<strong>在 OpenVLA 中两者基本指同一部分：DINOv2 + SigLIP。</strong><br />
+- <strong>DINOv2</strong>：提供视觉外观与结构等特征。<br />
+- <strong>SigLIP</strong>：提供与语言语义相关的视觉特征。<br />
+- 两组特征互补。</p>
+
+<h3>4.3 Projector（投影层）</h3>
+
+<p>将视觉编码器输出映射到 LLM 可接收的表示空间：$$F_{\text{visual}}\xrightarrow{\text{MLP Projector}}E_{\text{visual}}$$<br />
+例如视觉特征 1024 维、LLM 隐藏向量 4096 维，需要学习维度转换（维度仅为示例）。<br />
+- <strong>Projector 不会把图片翻译成文字，而是转换连续向量表示。</strong></p>
+
+<h3>4.4 Vision-Conditioned Language Model</h3>
+
+<p>语言模型生成 Token 时，不只依赖文本，也依赖视觉输入：$$P(y_t\mid y_{&lt;t},I,l)$$<br />
+- $I$：图像；$l$：语言指令；$y_{&lt;t}$：已生成的 Token；$y_t$：下一个 Token。<br />
+- 在 OpenVLA 中，最终生成的是机器人动作 Token，而不只是自然语言。</p>
+
+<h2>5. Image Patch Embeddings 与 Token</h2>
+
+<h3>5.1 Image Patch Embeddings（图像块嵌入）</h3>
+
+<p>ViT 将图像分割成多个 Patch，每个 Patch 映射成一个向量。例如 $224\times224$ 图像、$16\times16$ Patch，得到 $14\times14=196$ 个 Patch，经嵌入和编码得到一串视觉特征向量。<br />
+- <strong>一个视觉 Token 通常就是一个连续特征向量。</strong></p>
+
+<h3>5.2 特征向量和 Token 的关系</h3>
+
+<p>图像 → Patch → Embedding → 视觉 Token 序列。因此“编码成视觉 Token”和“提取特征向量”并不矛盾。</p>
+
+<h3>5.3 文本为什么需要 Tokenizer？</h3>
+
+<p>LLM 无法直接计算原始字符串：文字 → Tokenizer → 离散 Token ID → Embedding → 连续向量 → Transformer。例如 "Pick up the cup" → Token ID 序列 → 向量序列。</p>
+
+<h3>5.4 文本 Token 与视觉 Token</h3>
+
+<ul>
+<li><strong>文本 Token</strong>：先经 Tokenizer 得到离散 ID，再经 Embedding 得到向量。</li>
+<li><strong>视觉 Token</strong>：由图像块直接生成连续向量。</li>
+<li><strong>共同点：最终输入 Transformer 的都是连续向量。</strong><br />
+<h2>6. 动作表示与 Action De-Tokenizer</h2></li>
+</ul>
+
+<h3>6.1 N 维机器人动作</h3>
+
+<p>$$a_t=[a_1,a_2,\ldots,a_N]\in\mathbb R^N$$<br />
+- $N$ 是动作向量中的数值数量，不是机器人有 $N$ 种动作可选。<br />
+- 不同机器人可以有不同的动作维度。</p>
+
+<h3>6.2 7D Robot Action</h3>
+
+<p>$$a_t=[\Delta x,\Delta y,\Delta z,\Delta r_x,\Delta r_y,\Delta r_z,g]$$<br />
+- 前 3 维：末端执行器位置变化。<br />
+- 中间 3 维：末端执行器旋转变化。<br />
+- 最后 1 维：夹爪开合控制。</p>
+
+<h3>6.3 为什么要把连续动作离散化？</h3>
+
+<p>机器人动作是连续数值，而语言模型的输出空间是离散 Token。OpenVLA 将每个动作维度分别编码成离散 Token，让 LLM 用生成语言 Token 的方式预测动作。</p>
+
+<h3>6.4 256 Bins（动作离散化）</h3>
+
+<p>遵循 RT-2，每个动作维度划分为 256 个 Bin，每个 Bin 对应一个动作 Token。为减少极端值影响，使用训练数据中该维度的 $P_1$（第 1 百分位）和 $P_{99}$（第 99 百分位）：$$\Delta=\frac{P_{99}-P_1}{256}$$<br />
+例：$P_1=-0.2,\ P_{99}=0.2$，则 $\Delta=0.4/256=0.0015625$。某维 $x=0.1$：$$k=\left\lfloor\frac{x-P_1}{P_{99}-P_1}\times256\right\rfloor=192$$<br />
+映射到 Bin 192 对应的 Token（实际编码还需处理边界情况）。<br />
+- <strong>为什么用 P1–P99？</strong> 避免少量极端值把区间拉得过宽，降低常见动作范围内的离散化精度。</p>
+
+<h3>6.5 Action De-Tokenizer</h3>
+
+<p>LLM 输出 7 个动作 Token → 查找各自对应的 Bin → 转换成连续控制数值 → 7 维机器人动作。<br />
+- <strong>主要执行确定性数值映射，不是另一个独立预测动作的模型。</strong></p>
+
+<h2>7. 机器人训练数据</h2>
+
+<h3>7.1 数据配比（Data Mixture）</h3>
+
+<p>结合来自不同机器人、任务和场景的数据训练，Data Mixture 控制各数据集在训练采样中的权重：<br />
+- Bridge 13.3%、Fractal 12.7%、Kuka 12.7%、DROID 10.0%、BC-Z 7.5%、FMB 7.1%，其余数据集为其他权重。<br />
+- DROID 在训练后期被移除，其权重重新分配给其他数据集。<br />
+- <strong>采样占比不等于原始数据占比</strong>，可避免规模较大的数据集过度主导训练。</p>
+
+<h3>7.2 Third-Person Camera（第三人称相机）</h3>
+
+<p>安装在机器人外部（如工作台侧面或上方），从旁观者角度观察机器人和环境，提供机器人、目标物体和周围环境的整体信息。<br />
+- 第一人称：摄像头装在机器人自身，例如机械臂末端。<br />
+- 第三人称：从外部观察机器人及其操作场景。</p>
+
+<h2>8. 互联网规模预训练</h2>
+
+<p>Internet-Scale Pretraining 指利用互联网收集的大规模文字、图像或图文对训练模型，<strong>不是指运行时必须联网</strong>。<br />
+- 互联网预训练：学习视觉、语言、物体语义及一般知识。<br />
+- 机器人数据微调：学习如何把这些知识映射成机器人动作。</p>
+
+<p>例如模型可能已知道香蕉的外观和语义，但还需要机器人示范才能学会控制机械臂抓取香蕉。</p>
+
+<h2>9. 微调与训练概念</h2>
+
+<h3>9.1 Full Fine-Tuning</h3>
+
+<p>更新模型全部可训练参数。OpenVLA 的基础训练主要使用完整微调。</p>
+
+<h3>9.2 Sandwich Fine-Tuning（三明治微调）</h3>
+
+<p>选择性参数微调：<strong>更新输入端和输出端的关键组件，冻结中间大部分语言模型参数。</strong><br />
+- 视觉编码器：参与微调。<br />
+- Token Embedding 和最后一层相关组件：参与微调。<br />
+- 中间大部分 LLM 层：冻结。</p>
+
+<p>目的是减少更新成本，同时调整视觉输入与动作输出能力。这是适配阶段的微调方案，不是 OpenVLA 的基础架构。</p>
+
+<h3>9.3 Model Quantization（模型量化）</h3>
+
+<p>用较少 Bit 表示模型参数，通过缩放和舍入将高精度数值映射到低精度表示。7B 模型权重理论占用（不含 KV Cache 等开销）：<br />
+- FP32：28 GB；FP16：14 GB；INT8：7 GB；INT4：3.5 GB。</p>
+
+<p>作用：降低显存占用、减少内存带宽需求、在合适硬件上可能加速推理。<strong>可能引入精度损失，也不保证一定加速</strong>——下图中多数 GPU 上 8 bit 反而比 bfloat16 慢。<br />
+<img src="/images/obsidian/3d8f36945dea.png" alt="OpenVLA_推理速度与量化.png" width="560" /></p>
+
+<h3>9.4 Epoch、Batch 与 Step</h3>
+
+<ul>
+<li><strong>Epoch</strong>：完整遍历训练数据集一轮。</li>
+<li><strong>Batch</strong>：一次取出的训练样本集合。</li>
+<li><strong>Step</strong>：一次训练迭代，通常执行一次参数更新。</li>
+</ul>
+
+<p>例：10,000 个样本、Batch Size = 100，则 $\text{Steps per Epoch}=10000/100=100$，2 Epochs 约 200 Step。<strong>训练 1–2 个 Epoch 不代表只更新 1–2 次参数。</strong></p>
+
+<h2>10. OpenVLA 与其他 VLA</h2>
+
+<h3>10.1 RT-2</h3>
+
+<p>RT-2 与 OpenVLA 都使用动作 Token 化，让 VLM 生成机器人动作。RT-2 是这条路线的重要先前工作，OpenVLA 进一步提供开放的模型、训练和微调方案。</p>
+
+<h3>10.2 π₀ 与 π₀.₅</h3>
+
+<ul>
+<li><strong>π₀</strong>：Physical Intelligence 提出的 VLA，使用 Flow Matching 生成连续机器人动作。</li>
+<li><strong>π₀.₅</strong>：在 π₀ 基础上研究开放世界泛化，强调在未见过的真实环境中执行任务。</li>
+<li>OpenVLA 主要使用离散动作 Token；π 系列采用不同的动作生成设计。<br />
+<h2>11. 总结</h2></li>
+</ul>
+
+<p><strong>OpenVLA = 预训练视觉编码器 + MLP Projector + 预训练 LLM + 动作 Token 化。</strong><br />
+完整流程：<br />
+1. 图像经过 DINOv2 和 SigLIP，得到视觉特征向量。<br />
+2. MLP Projector 将视觉特征转换成 LLM 的输入表示。<br />
+3. 语言指令经过 Tokenizer 和 Embedding。<br />
+4. Llama 2 结合视觉与语言信息生成动作 Token。<br />
+5. Action De-Tokenizer 将 Token 映射回连续机器人动作。<br />
+6. 机器人执行动作并根据新观察继续控制。</p>
+
+<p>核心设计：<br />
+- 使用互联网预训练模型已学到的视觉和语言知识。<br />
+- 通过机器人示范数据微调，学习从观察到动作的映射。<br />
+- 将每个连续动作维度离散化，使 LLM 能直接预测动作 Token。<br />
+- 不需要额外构建独立、从零训练的动作预测网络。</p>
+
+<p><strong>一句话总结：OpenVLA 通过把机器人动作表示成语言模型能够生成的 Token，将预训练 VLM 直接转换为学习式视觉运动控制策略。</strong></p>

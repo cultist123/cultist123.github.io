@@ -1,0 +1,368 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="个人主页、项目与学习笔记"><title>Diffusion Policy：用扩散模型生成动作 · Nathen</title><link rel="stylesheet" href="/style.css?v=552509ee2b5d"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231769aa'/%3E%3Cpath d='M9 8h14v16H9zM12 13h8M12 17h8' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"></head><body><div class="shell"><header class="header"><a class="name" href="/">Nathen</a><nav class="nav" aria-label="主导航"><a href="/">首页</a><a href="/blogs/?v=552509ee2b5d" aria-current="page">博客</a><a href="/projects/?v=552509ee2b5d">项目</a></nav></header><main id="main-content"><a class="back" href="/blogs/?v=552509ee2b5d#embodied-ai">返回具身智能</a><p class="eyebrow">具身智能 · 策略与动作生成</p><h1>Diffusion Policy：用扩散模型生成动作</h1><p class="lead">2026 年 11 月 24 日 · 学习笔记</p><div class="course-layout"><aside id="course-navigation" class="course-sidebar"><div class="sidebar-heading">本文目录</div><nav aria-label="本文目录"><a class="toc-level-3" href="#section-1">1. 研究背景与核心问题</a><a class="toc-level-3" href="#section-2">2. Diffusion Policy 与 ACT 的关系</a><a class="toc-level-3" href="#section-3">3. 为什么 Diffusion Policy 属于模仿学习？</a><a class="toc-level-3" href="#section-4">4. 显式策略、隐式策略与扩散策略</a><a class="toc-level-4" href="#section-5">4.1 Explicit Policy（显式策略）</a><a class="toc-level-4" href="#section-6">4.2 Implicit Policy（隐式策略）</a><a class="toc-level-4" href="#section-7">4.3 Diffusion Policy（扩散策略）</a><a class="toc-level-3" href="#section-8">5. 多模态动作分布（Multimodal Action Distribution）</a><a class="toc-level-3" href="#section-9">6. 概率密度、能量函数与梯度场</a><a class="toc-level-4" href="#section-10">6.1 Probability Density（概率密度）</a><a class="toc-level-4" href="#section-11">6.2 Energy Function（能量函数）</a><a class="toc-level-4" href="#section-12">6.3 Score Gradient（得分梯度）</a><a class="toc-level-4" href="#section-13">6.4 数值例子：梯度如何调整动作</a><a class="toc-level-3" href="#section-14">7. 扩散模型如何学会去噪？</a><a class="toc-level-4" href="#section-15">7.1 训练阶段：人为加噪</a><a class="toc-level-4" href="#section-16">7.2 推理阶段：从噪声生成动作</a><a class="toc-level-3" href="#section-17">8. 扩散与普通梯度下降的区别</a><a class="toc-level-3" href="#section-18">9. Langevin Dynamics（朗之万动力学）</a><a class="toc-level-3" href="#section-19">10. Diffusion Policy 的整体架构</a><a class="toc-level-3" href="#section-20">11. Figure 2(a)：Observation 与 Action Horizon</a><a class="toc-level-4" href="#section-21">11.1 输入 Observation</a><a class="toc-level-4" href="#section-22">11.2 输出 Action Sequence</a><a class="toc-level-4" href="#section-23">11.3 Receding Horizon Control（滚动时域控制）</a><a class="toc-level-3" href="#section-24">12. Figure 2(b)：CNN-based Diffusion Policy</a><a class="toc-level-3" href="#section-25">13. Figure 2(c)：Transformer-based Diffusion Policy</a><a class="toc-level-3" href="#section-26">14. 噪声等级 k 与去噪次数 K</a><a class="toc-level-3" href="#section-27">15. Diffusion Policy 的训练与执行</a><a class="toc-level-4" href="#section-28">15.1 训练</a><a class="toc-level-4" href="#section-29">15.2 推理</a><a class="toc-level-3" href="#section-30">16. 与 ACT 的核心对比</a><a class="toc-level-3" href="#section-31">17. 总结</a></nav><nav class="local-toc"><a href="/blogs/?v=552509ee2b5d#embodied-ai">返回具身智能</a></nav></aside><div class="course-main"><article class="prose course-note"><p>论文：https://arxiv.org/abs/2303.04137</p>
+
+<h2 id="section-1">1. 研究背景与核心问题</h2>
+
+<p><strong>Diffusion Policy（扩散策略）</strong> 是一种基于扩散模型的机器人模仿学习方法，主要应用于 Low-Level Policy（底层动作策略），根据视觉观察与机器人状态生成连续的动作序列。<br />
+传统 Behavior Cloning（BC）使用神经网络直接预测专家动作，但机器人操作存在多个合理动作模式，单一回归模型容易将不同动作平均，产生不合理动作。<br />
+例如抓杯子时，从左侧和右侧抓取都合理，直接平均可能得到一个不合理的中间动作。<br />
+<strong>核心问题</strong>：如何学习复杂的多模态动作分布，同时实现连续、稳定的机器人动作控制？<br />
+Diffusion Policy 将动作预测转化为条件扩散生成问题，通过迭代去噪生成动作序列，并结合滚动时域控制实现闭环执行。</p>
+
+<h2 id="section-2">2. Diffusion Policy 与 ACT 的关系</h2>
+
+<p>两者都属于机器人模仿学习中的动作策略，目标是从观察预测未来的动作序列。<br />
+- <strong>ACT</strong>：使用 Transformer + CVAE，直接预测 Action Chunk，并通过 Temporal Ensembling 融合重叠动作预测。<br />
+- <strong>Diffusion Policy</strong>：使用扩散模型，从随机动作噪声开始，经过多次去噪生成 Action Chunk，并通过 Receding Horizon Control 执行动作。<br />
+两者都工作在机器人底层策略层，不负责高层任务规划，也不是直接驱动电机的底层控制器。<br />
+<strong>核心区别</strong>：ACT 主要通过一次网络前向传播生成动作块，Diffusion Policy 通过迭代去噪生成动作块。</p>
+
+<h2 id="section-3">3. 为什么 Diffusion Policy 属于模仿学习？</h2>
+
+<p><strong>Imitation Learning（模仿学习）</strong> 是训练范式，<strong>Diffusion Model（扩散模型）</strong> 是用于表示和生成动作的方法。<br />
+训练过程：<br />
+1. 人类示范机器人操作，记录 RGB 图像、机器人状态和专家动作。<br />
+2. 对专家动作序列添加随机高斯噪声。<br />
+3. 训练神经网络根据观察和噪声等级预测添加的噪声。<br />
+4. 推理时从随机噪声开始，逐渐生成符合专家示范分布的动作。<br />
+模型学习的是专家动作分布，不需要通过环境 Reward 进行训练，因此属于模仿学习。</p>
+
+<h2 id="section-4">4. 显式策略、隐式策略与扩散策略</h2>
+
+<p><img src="/images/obsidian/1612f704846a.png" alt="DP_论文图1_三种策略表示.png" width="720" /><br />
+<em>论文图 1（Policy Representations）：(a) 显式策略直接输出动作或动作分布；(b) 隐式策略通过能量函数寻找低能量动作；(c) 扩散策略通过学习梯度场，从噪声中迭代生成动作。</em></p>
+
+<h3 id="section-5">4.1 Explicit Policy（显式策略）</h3>
+
+<p>显式策略直接根据观察输出动作或动作分布参数：<br />
+$$
+\hat a=F_\theta(o)
+$$<br />
+常见输出表示（对应图 (a) 右侧虚线框）：<br />
+- <strong>Scalar Regression</strong>：直接预测连续动作数值。<br />
+- <strong>Mixture of Gaussians（高斯混合）</strong>：预测多个高斯分布的混合，表示不同动作模式。<br />
+- <strong>Categorical</strong>：将动作离散化后预测类别概率。<br />
+简单回归通常计算 MSE 或 L1 Loss，面对多种合理动作时可能预测出动作平均值。</p>
+
+<h3 id="section-6">4.2 Implicit Policy（隐式策略）</h3>
+
+<p>隐式策略不直接输出动作，而是学习能量函数：<br />
+$$
+E_\theta(o,a)
+$$<br />
+根据观察 $o$ 和候选动作 $a$，计算动作对应的能量。通常认为低能量动作更符合专家数据。<br />
+通过优化寻找动作：<br />
+$$
+a^*=\arg\min_a E_\theta(o,a)
+$$<br />
+<strong>缺点</strong>：高维连续动作空间中，直接优化能量函数寻找合理动作可能比较耗时。</p>
+
+<h3 id="section-7">4.3 Diffusion Policy（扩散策略）</h3>
+
+<p>Diffusion Policy 利用噪声预测网络学习动作分布的得分信息：<br />
+$$
+\nabla_a\log p(a\mid o)
+$$<br />
+它不需要直接枚举所有候选动作，也不需要显式计算每个动作的概率密度，而是通过多次去噪从随机动作生成合理动作。<br />
+<strong>核心区别</strong>：<br />
+- 显式策略：直接预测动作。<br />
+- 隐式策略：通过优化能量函数选择动作。<br />
+- 扩散策略：学习去噪方向，通过迭代采样生成动作。</p>
+
+<h2 id="section-8">5. 多模态动作分布（Multimodal Action Distribution）</h2>
+
+<p><strong>Mode（模态）</strong>：概率分布中的一个局部峰值区域，即数据较集中的地方。<br />
+<strong>Multimodal Distribution（多模态分布）</strong>：同一个条件下存在多个高概率区域，对应多种合理的动作方式。<br />
+例如机器人抓杯子：<br />
+- Mode A：从左侧抓取。<br />
+- Mode B：从右侧抓取。<br />
+- 中间区域：可能并不是合理动作。<br />
+普通 MSE 回归模型可能把两个动作平均，而扩散模型可以表示多个高概率区域，并从中生成一种合理的动作。<br />
+<img src="/images/obsidian/c7e4f5671bc8.png" alt="DP_论文图3_多模态行为.png" width="640" /><br />
+<em>论文图 3：Push-T 任务中的多模态行为，T 块可以从左侧或右侧绕过去推。Diffusion Policy 每次 rollout 只选一边并坚持到底；LSTM-GMM、IBC 偏向一侧，BET 在两种模式间来回跳，轨迹抖动。</em><br />
+注意：这里的多模态是指概率分布存在多个峰值，不是指图像、语言等多种数据模态。</p>
+
+<h2 id="section-9">6. 概率密度、能量函数与梯度场</h2>
+
+<h3 id="section-10">6.1 Probability Density（概率密度）</h3>
+
+<p>机器人动作通常是连续向量：<br />
+$$
+a=[x,y,z,\theta,\text{gripper}]
+$$<br />
+每个维度可以取连续数值，因此无法像三个离散动作那样枚举所有可能结果。<br />
+<strong>概率密度 $p(a\mid o)$</strong> 描述在观察 $o$ 下，专家动作集中在哪些区域。<br />
+例如人类示范大多选择向左移动 10mm，则 10mm 附近的概率密度较高，远离该位置的概率密度较低。<br />
+概率密度不等于某个精确连续动作发生的概率，连续变量落入某个区间的概率需要对密度积分。</p>
+
+<h3 id="section-11">6.2 Energy Function（能量函数）</h3>
+
+<p>能量和概率密度可以建立关系：<br />
+$$
+p(a\mid o)=\frac{1}{Z(o)}\exp(-E(o,a))
+$$<br />
+其中 $Z(o)$ 是归一化常数。<br />
+- <strong>低能量</strong>：对应较高概率密度，通常是合理动作区域。<br />
+- <strong>高能量</strong>：对应较低概率密度，通常偏离专家示范。<br />
+可以把能量函数想象为地形：合理动作位于山谷，不合理动作位于较高区域。<br />
+<img src="/images/obsidian/96fb3cc20e0e.png" alt="DP_论文图1b_隐式策略能量图.png" width="460" /><br />
+<em>论文图 1(b)：颜色越浅能量越低。黑色曲线是二维示意中的低能量区域（专家动作所在处），不是机器人真实运动轨迹；横轴为观察 $o$，纵轴为动作 $a$。注意 $o\approx-0.5\sim0.5$ 时同一个 $o$ 对应上下两个 $a$，这就是多模态。</em></p>
+
+<h3 id="section-12">6.3 Score Gradient（得分梯度）</h3>
+
+<p>得分梯度定义为：<br />
+$$
+s(a,o)=\nabla_a\log p(a\mid o)
+$$<br />
+它不是给出动作概率密度的数值，而是告诉模型：<strong>从当前动作出发，沿哪个方向调整，能够使动作进入概率密度更高的区域。</strong><br />
+由于：<br />
+$$
+\log p(a\mid o)=-E(o,a)-\log Z(o)
+$$<br />
+所以：<br />
+$$
+\boxed{\nabla_a\log p(a\mid o)=-\nabla_aE(o,a)}
+$$<br />
+<strong>对 Energy 做梯度下降，与对 Log Probability 做梯度上升，在该关系下具有相同的方向。</strong> 而且 $Z(o)$ 与 $a$ 无关，求梯度时直接消掉——这正是扩散策略绕开隐式策略中难以估计的归一化常数的关键。<br />
+<img src="/images/obsidian/2d53dfb2cdc4.png" alt="DP_论文图1c_扩散策略梯度场.png" width="480" /><br />
+<em>论文图 1(c)：蓝色箭头就是梯度场，每个箭头指向“离黑色曲线（高密度区域）更近”的方向；左侧框中 $\varepsilon_\theta(o,a)$ 被反复调用 $K$ 次，每次沿箭头更新一次 $a$。</em></p>
+
+<h3 id="section-13">6.4 数值例子：梯度如何调整动作</h3>
+
+<p>假设专家动作集中在 10mm 附近：<br />
+$$
+p(a)\propto\exp\left(-\frac{(a-10)^2}{2}\right)
+$$<br />
+其得分梯度：<br />
+$$
+\nabla_a\log p(a)=-(a-10)
+$$<br />
+当 $a=13$ 时：<br />
+$$
+\nabla_a\log p(13)=-3
+$$<br />
+负号表示应该减少当前动作数值。<br />
+使用简化的梯度上升：<br />
+$$
+a_{\mathrm{new}}=a+\eta\nabla_a\log p(a)
+$$<br />
+若 $\eta=0.5$，则更新过程为：<br />
+$$
+13\rightarrow11.5\rightarrow10.75\rightarrow\cdots\rightarrow10
+$$<br />
+<strong>核心区别</strong>：概率密度描述哪里存在合理动作，得分梯度描述应该朝哪个方向调整动作。</p>
+
+<h2 id="section-14">7. 扩散模型如何学会去噪？</h2>
+
+<h3 id="section-15">7.1 训练阶段：人为加噪</h3>
+
+<p>给专家动作序列 $A^0$ 添加随机噪声，形成不同噪声等级的动作：<br />
+$$
+A^k=\sqrt{\bar\alpha_k}A^0+\sqrt{1-\bar\alpha_k}\epsilon
+$$<br />
+其中：<br />
+- $A^0$：原始专家动作序列。<br />
+- $A^k$：第 $k$ 个噪声等级下的动作。<br />
+- $\epsilon\sim\mathcal N(0,I)$：人为添加的高斯噪声。<br />
+- $\bar\alpha_k$：控制原始动作与噪声的比例。<br />
+由于噪声是人为添加的，所以训练时知道真实噪声 $\epsilon$。<br />
+网络接收观察、带噪动作和噪声等级：<br />
+$$
+\epsilon_\theta(O,A^k,k)
+$$<br />
+通过噪声预测损失训练：<br />
+$$
+\mathcal L=\mathbb E\left[\|\epsilon-\epsilon_\theta(O,A^k,k)\|^2\right]
+$$<br />
+<strong>训练目标</strong>：让网络学会在不同噪声等级和环境观察条件下，判断动作中包含哪些噪声。</p>
+
+<h3 id="section-16">7.2 推理阶段：从噪声生成动作</h3>
+
+<p>实际运行时不存在需要还原的真实动作，模型从随机高斯噪声开始：<br />
+$$
+A^K\sim\mathcal N(0,I)
+$$<br />
+然后反复调用同一个去噪网络：<br />
+$$
+A^K\rightarrow A^{K-1}\rightarrow\cdots\rightarrow A^1\rightarrow A^0
+$$<br />
+- 高噪声阶段：形成大致合理的动作结构。<br />
+- 中间阶段：调整动作序列。<br />
+- 低噪声阶段：进一步修正细节。<br />
+<strong>关键点</strong>：模型并不是恢复某条已经存在的真实动作，而是从学到的专家动作分布中生成新的动作样本。</p>
+
+<blockquote>
+  <p>[!example] 对照图<br />
+  Figure 2 左下角三张图 $A_t^K\rightarrow A_t^3\rightarrow A_t^0$ 就是这个过程：一开始彩色点（未来动作）散满画面，逐步收拢成一条推 T 块的平滑轨迹。见第 11 节的 Figure 2(a)。</p>
+  
+  <h2 id="section-17">8. 扩散与普通梯度下降的区别</h2>
+</blockquote>
+
+<p>普通梯度下降使用固定能量函数：<br />
+$$
+a_{n+1}=a_n-\eta\nabla_aE(a_n)
+$$<br />
+每一步都沿同一个能量函数的下降方向优化。<br />
+Diffusion Policy 则学习不同噪声等级下的得分场：<br />
+$$
+s_\theta(A^k,k,O)\approx\nabla_{A^k}\log p_k(A^k\mid O)
+$$<br />
+其中 $p_k$ 是第 $k$ 个噪声等级下的动作分布。<br />
+<strong>为什么不同？</strong><br />
+- 普通梯度下降：针对固定目标函数寻找低能量点。<br />
+- Diffusion Policy：从高度加噪的分布出发，逐步转换到专家动作分布。<br />
+- 不同 $k$ 对应不同噪声等级和不同的得分场，因此去噪方向会随阶段变化。<br />
+扩散去噪不是简单地对一个固定能量函数不断做梯度下降，而是使用噪声调度、去噪网络及可能的随机项完成采样。</p>
+
+<h2 id="section-18">9. Langevin Dynamics（朗之万动力学）</h2>
+
+<p><strong>朗之万动力学</strong>是一种结合梯度和随机噪声的采样方法，可用于从概率分布中采样，而不只是寻找一个最优点。<br />
+其典型离散形式：<br />
+$$
+a_{n+1}=a_n-\eta\nabla_aE(a_n)+\sqrt{2\eta T}\epsilon_n
+$$<br />
+其中：<br />
+- $-\eta\nabla_aE(a_n)$：沿能量下降方向更新。<br />
+- $\epsilon_n\sim\mathcal N(0,I)$：随机噪声。<br />
+- $T$：控制噪声强度。<br />
+- $\eta$：更新步长。<br />
+与普通梯度下降相比，朗之万动力学增加随机扰动，使采样过程能够探索不同的低能量区域。<br />
+<strong>核心区别</strong>：梯度下降主要寻找低能量解，朗之万动力学可以在一定条件下从目标分布中采样。<br />
+Diffusion Policy 的反向扩散过程与得分驱动的随机采样密切相关，但具体更新形式不完全等同于上述简单公式。</p>
+
+<h2 id="section-19">10. Diffusion Policy 的整体架构</h2>
+
+<p><img src="/images/obsidian/b341a27be1df.png" alt="DP_论文图2_整体架构.png" width="760" /><br />
+<em>论文图 2（Diffusion Policy Overview）：(a) 输入观察序列和输出动作序列；(b) CNN + FiLM 去噪网络；(c) Transformer + Cross-Attention 去噪网络。</em><br />
+整体流程：<br />
+<strong>Observation → Noisy Action Sequence → Denoising Network × K → Predicted Action Sequence → Robot Execution</strong><br />
+模型并不是对 RGB 图像去噪，而是根据图像和机器人状态，对随机动作序列进行去噪。</p>
+
+<h2 id="section-20">11. Figure 2(a)：Observation 与 Action Horizon</h2>
+
+<p><img src="/images/obsidian/14a51e3fe158.png" alt="DP_论文图2a_通用形式.png" width="640" /><br />
+<em>论文图 2(a)（General Formulation）：上方是最近几步的观察，中间是扩散策略 $\varepsilon_\theta(O,A,k)$，下方是预测的动作序列；机器人执行部分动作后，在新时刻 $t+4$ 重新观察并预测。</em></p>
+
+<h3 id="section-21">11.1 输入 Observation</h3>
+
+<p>$$
+O_t=[o_{t-T_o+1},\ldots,o_t]
+$$<br />
+- $T_o$：Observation Horizon，即输入多少步历史观察。<br />
+- $o_t$：某个时间步的视觉图像和机器人状态。<br />
+例如图中使用 $o_{t-2},o_{t-1},o_t$ 三步观察。</p>
+
+<h3 id="section-22">11.2 输出 Action Sequence</h3>
+
+<p>$$
+A_t=[a_t,a_{t+1},\ldots,a_{t+T_p-1}]
+$$<br />
+- $T_p$：Prediction Horizon，一次预测未来多少步动作。<br />
+- $T_a$：Action Horizon，实际连续执行多少步动作。<br />
+通常满足：<br />
+$$
+T_a\leq T_p
+$$</p>
+
+<h3 id="section-23">11.3 Receding Horizon Control（滚动时域控制）</h3>
+
+<p>例如一次预测未来 8 步，但只执行前 4 步：<br />
+1. 在 $t$ 时刻，根据最近观察生成 $A_t$。<br />
+2. 执行 $a_t,a_{t+1},a_{t+2},a_{t+3}$（图中深蓝色的四格）。<br />
+3. 到 $t+4$ 时，重新获取观察 $O_{t+4}$。<br />
+4. 生成新动作序列 $A_{t+4}$。<br />
+<strong>为什么只执行部分动作？</strong> 环境会发生变化，预测越远可能越不准确。只执行前面一段再重新规划，能够结合新的视觉反馈修正动作。</p>
+
+<h2 id="section-24">12. Figure 2(b)：CNN-based Diffusion Policy</h2>
+
+<p><img src="/images/obsidian/d480e49bde00.png" alt="DP_论文图2b_CNN_FiLM.png" width="340" /><br />
+<em>论文图 2(b)：带噪动作序列 $A_t$ 进入 Conv1D 网络；Observation 经过 Linear 层生成调节参数 $a,b$，通过 FiLM 影响动作特征。</em><br />
+CNN-based Diffusion Policy 使用 <strong>1D CNN + FiLM Conditioning</strong> 实现动作序列去噪。<br />
+- <strong>Action Embedding</strong>：将带噪动作序列转换成特征。<br />
+- <strong>Conv1D</strong>：沿动作时间维度提取序列特征。<br />
+- <strong>Observation Embedding</strong>：将图像和机器人状态编码成条件特征。<br />
+- <strong>FiLM（Feature-wise Linear Modulation）</strong>：使用观察条件调节 CNN 中间层。<br />
+FiLM 的计算：<br />
+$$
+y=a\odot x+b
+$$<br />
+- $x$：CNN 当前的动作特征。<br />
+- $a,b$：由观察条件生成的缩放和偏移参数。<br />
+- $\odot$：逐元素乘法。<br />
+例如机器人看到杯子在左侧，Observation 会改变 $a,b$，从而影响去噪网络如何生成动作。<br />
+<strong>核心作用</strong>：CNN 负责建模动作序列，FiLM 负责将环境观察信息注入动作去噪过程。</p>
+
+<h2 id="section-25">13. Figure 2(c)：Transformer-based Diffusion Policy</h2>
+
+<p><img src="/images/obsidian/f550d909ece4.png" alt="DP_论文图2c_Transformer.png" width="340" /><br />
+<em>论文图 2(c)：带噪动作转换成 Action Embedding，观察转换成 Observation Embedding；Transformer 使用 Cross-Attention 结合环境信息，并通过 Causal Mask（中间的下三角蓝色格子）限制动作 Token 的注意力范围。</em><br />
+核心组成：<br />
+- <strong>Action Embedding</strong>：将带噪动作转换为 Token。<br />
+- <strong>Observation Embedding</strong>：将图像和机器人状态转换为 Token。<br />
+- <strong>Self-Attention</strong>：建模动作序列内部的依赖关系。<br />
+- <strong>Cross-Attention</strong>：让动作 Token 关注 Observation 特征。<br />
+- <strong>Causal Mask</strong>：限制动作 Token 只能关注自身和前面的动作位置。<br />
+在 Cross-Attention 中：<br />
+- <strong>Q</strong>：Action Embedding。<br />
+- <strong>K、V</strong>：Observation Embedding。<br />
+Transformer 输出动作噪声预测，用于下一轮去噪。<br />
+<strong>与 CNN 版本的区别</strong>：CNN 使用 FiLM 注入 Observation，Transformer 使用 Cross-Attention 融合 Observation 与 Action。</p>
+
+<h2 id="section-26">14. 噪声等级 k 与去噪次数 K</h2>
+
+<blockquote>
+  <p>[!tip] 看图位置<br />
+  在上面 Figure 2(b)(c) 两张图里：左下/中间的<strong>蓝色小方块 $k$</strong> 是输入去噪网络的噪声等级标识，右边蓝色回环上的 <strong>×K</strong> 表示整个去噪过程重复 K 次（输出 $\nabla E(A_t)$ 后更新 $A_t$ 再送回底部）。<br />
+  - <strong>$A^k$</strong>：当前噪声等级下的动作序列。<br />
+  - <strong>$O$</strong>：当前观察条件。<br />
+  - <strong>$k$</strong>：当前处于哪个噪声等级。<br />
+  - <strong>$K$</strong>：去噪总步数。<br />
+  例如：<br />
+  $$
+A^4\xrightarrow{k=4}A^3\xrightarrow{k=3}A^2\xrightarrow{k=2}A^1\xrightarrow{k=1}A^0
+$$<br />
+  <strong>每次使用同一个去噪网络和参数，但输入的动作序列、噪声等级不同。</strong><br />
+  网络需要知道 $k$，才能根据当前噪声强度预测适当的去噪方向。</p>
+  
+  <h2 id="section-27">15. Diffusion Policy 的训练与执行</h2>
+</blockquote>
+
+<h3 id="section-28">15.1 训练</h3>
+
+<p>使用专家示范数据：<br />
+$$
+\mathcal D=\{(O_t,A_t)\}
+$$<br />
+训练流程：采样专家动作 → 添加不同等级的高斯噪声 → 输入 Observation、Noisy Actions 和 $k$ → 预测噪声 → 计算 Loss → 更新网络。<br />
+模型通过监督式去噪训练，间接学习专家的条件动作分布。</p>
+
+<h3 id="section-29">15.2 推理</h3>
+
+<p>推理时：<br />
+1. 获取最近 $T_o$ 步观察。<br />
+2. 随机初始化长度为 $T_p$ 的动作序列。<br />
+3. 经过 $K$ 次去噪，得到 $A_t^0$。<br />
+4. 执行其中前 $T_a$ 步。<br />
+5. 获取新的观察，继续预测。<br />
+<strong>执行特点</strong>：每次生成一段连续动作，但只执行其中一部分，再利用新的视觉反馈重新规划。</p>
+
+<h2 id="section-30">16. 与 ACT 的核心对比</h2>
+
+<ul>
+<li><strong>相同点</strong>：两者都利用专家示范进行模仿学习，均可根据 RGB 图像和机器人状态生成未来动作序列。</li>
+<li><strong>ACT</strong>：使用 CVAE + Transformer 预测 Action Chunk，训练时学习潜在变量，部署时通常令 $z=0$，并使用 Temporal Ensembling 平滑重叠动作。</li>
+<li><strong>Diffusion Policy</strong>：通过去噪网络生成动作序列，能够建模复杂的多模态动作分布，并通过 Receding Horizon Control 实现闭环执行。</li>
+<li><strong>ACT 的主要特点</strong>：动作块预测和重叠预测融合。</li>
+<li><strong>Diffusion Policy 的主要特点</strong>：基于得分的迭代生成和多模态动作分布建模。<br />
+<h2 id="section-31">17. 总结</h2></li>
+</ul>
+
+<p><strong>Diffusion Policy 的核心思想</strong>：将机器人动作预测转化为条件扩散生成任务，让模型从专家示范中学习动作分布的去噪方向，从随机动作噪声中逐步生成合理的连续动作序列。<br />
+关键技术关系：<br />
+- <strong>Imitation Learning</strong>：训练范式，使用专家示范学习动作策略。<br />
+- <strong>Score Gradient</strong>：表示动作概率密度增长的局部方向。<br />
+- <strong>Diffusion Model</strong>：通过多噪声等级的去噪学习复杂动作分布。<br />
+- <strong>CNN + FiLM / Transformer + Cross-Attention</strong>：两种条件去噪网络架构。<br />
+- <strong>Action Prediction Horizon</strong>：一次预测未来较长的动作序列。<br />
+- <strong>Receding Horizon Control</strong>：只执行部分动作，并根据新观察重新规划。<br />
+<strong>一句话：Diffusion Policy 通过学习专家动作分布的梯度信息，从随机噪声中迭代生成合理动作，再结合滚动时域控制完成机器人闭环操作。</strong></p>
+</article></div></div><button class="course-menu-button" aria-controls="course-navigation" aria-expanded="false">☰ 目录</button><script>const courseMenu=document.querySelector('.course-menu-button');const courseSidebar=document.querySelector('.course-sidebar');courseMenu.addEventListener('click',()=>{const open=courseMenu.getAttribute('aria-expanded')!=='true';courseMenu.setAttribute('aria-expanded',String(open));courseSidebar.classList.toggle('is-open',open);});courseSidebar.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}));document.addEventListener('keydown',e=>{if(e.key==='Escape'){courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}});</script><script>window.MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js"></script></main><footer class="footer"><span>© 2026 Nathen</span><span>学习、构建与记录。</span></footer></div></body></html>

@@ -1,0 +1,344 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="个人主页、项目与学习笔记"><title>预算感知 Agent：多轮决策与资源约束奖励 · Nathen</title><link rel="stylesheet" href="/style.css?v=552509ee2b5d"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231769aa'/%3E%3Cpath d='M9 8h14v16H9zM12 13h8M12 17h8' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"></head><body><div class="shell"><header class="header"><a class="name" href="/">Nathen</a><nav class="nav" aria-label="主导航"><a href="/">首页</a><a href="/blogs/?v=552509ee2b5d" aria-current="page">博客</a><a href="/projects/?v=552509ee2b5d">项目</a></nav></header><main id="main-content"><a class="back" href="/blogs/?v=552509ee2b5d#agentic-rl">返回Agentic RL</a><p class="eyebrow">Agentic RL · 时间与预算</p><h1>预算感知 Agent：多轮决策与资源约束奖励</h1><p class="lead">2026 年 11 月 24 日 · 学习笔记</p><div class="course-layout"><aside id="course-navigation" class="course-sidebar"><div class="sidebar-heading">本文目录</div><nav aria-label="本文目录"><a class="toc-level-3" href="#section-1">1. 研究问题与核心思想</a><a class="toc-level-3" href="#section-2">2. Budget-Augmented POMDP：将预算纳入决策</a><a class="toc-level-4" href="#section-3">2.1 基础 POMDP</a><a class="toc-level-4" href="#section-4">2.2 状态增强与资源成本</a><a class="toc-level-4" href="#section-5">2.3 预算增强观察与策略</a><a class="toc-level-3" href="#section-6">3. Episode 与预算条件训练</a><a class="toc-level-4" href="#section-7">3.1 Episode 初始化和终止</a><a class="toc-level-4" href="#section-8">3.2 标准化成本</a><a class="toc-level-4" href="#section-9">3.3 训练目标</a><a class="toc-level-3" href="#section-10">4. Reward Design：如何教会 Agent 管理预算？</a><a class="toc-level-4" href="#section-11">4.1 奖励函数的设计维度</a><a class="toc-level-4" href="#section-12">4.2 主要奖励形式</a><a class="toc-level-3" href="#section-13">5. 实验发现与评价标准</a><a class="toc-level-3" href="#section-14">6. 工程扩展讨论：多个资源约束</a><a class="toc-level-3" href="#section-15">7. 核心总结</a></nav><nav class="local-toc"><a href="/blogs/?v=552509ee2b5d#agentic-rl">返回Agentic RL</a></nav></aside><div class="course-main"><article class="prose course-note"><p>论文：https://arxiv.org/abs/2610.28409</p>
+
+<h2 id="section-1">1. 研究问题与核心思想</h2>
+
+<p>传统 Multi-Turn Agent 主要优化任务成功率，但实际执行受到 Token、工具调用次数和环境交互步数等资源预算限制。<br />
+论文研究两个递进问题：<br />
+1. <strong>可行性</strong>：能否只通过 RL，让 Agent 自主管理跨轮资源预算，而不依赖外部预算分配控制器？<br />
+2. <strong>奖励设计</strong>：哪种 Reward 能让 Agent 在不同预算下主动遵守约束，同时最大化任务成功率？<br />
+核心思想是 <strong>Budget-Conditioned Policy（预算条件策略）</strong>：让预算成为每一步策略决策的显式输入。<br />
+- <strong>External Budget Controller</strong>：外部模块替 Agent 决定如何分配或限制资源。<br />
+- <strong>Natural Budget Compliance</strong>：Agent 通过训练主动遵守预算，而非依靠硬性截断。<br />
+- <strong>Dynamic Budget</strong>：不同 Episode 可以指定不同预算；同一 Episode 的剩余预算持续变化。<br />
+训练设置：<br />
+- 每个环境与资源类型训练一个策略。<br />
+- 同一策略在训练时接收不同的初始预算。<br />
+- 每轮通过自然语言提供总预算和剩余预算。<br />
+- 测试策略能否适应训练中未出现过的预算。<br />
+<strong>目标不是单纯减少资源消耗，而是在给定预算内尽可能完成任务。</strong></p>
+
+<h2 id="section-2">2. Budget-Augmented POMDP：将预算纳入决策</h2>
+
+<h3 id="section-3">2.1 基础 POMDP</h3>
+
+<p>任务建模为：<br />
+$$
+\mathcal M=\langle S,A,\mathcal T,\Omega,\mathcal O,R,\gamma,\mu_0\rangle
+$$<br />
+- $S$：环境状态空间。<br />
+- $A$：动作空间。<br />
+- $\mathcal T$：状态转移分布。<br />
+- $\Omega$：观察空间。<br />
+- $\mathcal O$：观察分布。<br />
+- $R$：奖励函数。<br />
+- $\gamma$：折扣因子。<br />
+- $\mu_0$：初始状态分布。<br />
+Agent 无法直接访问完整状态 $s_t$，需要根据观察历史决策：<br />
+$$
+h_t=(o_1,a_1,\ldots,a_{t-1},o_t)
+$$</p>
+
+<h3 id="section-4">2.2 状态增强与资源成本</h3>
+
+<p>将剩余预算加入原始状态：<br />
+$$
+\boxed{\tilde s_t=(s_t,b_t)}
+$$<br />
+其中 $b_t$ 为当前剩余预算。<br />
+每个动作的资源成本由 $\kappa$ 衡量：<br />
+- <strong>Step Cost</strong>：每执行一步，成本为 1。<br />
+- <strong>Token Cost</strong>：动作生成的 Token 数，包括思考 Token。<br />
+- <strong>API Cost</strong>：实际执行的 API 调用次数。<br />
+预算更新：<br />
+$$
+\boxed{b_{t+1}=b_t-\kappa(a_t)}
+\tag{3.1}
+$$<br />
+增强状态转移：<br />
+$$
+\boxed{
+\tilde{\mathcal T}(s_{t+1},b_{t+1}\mid s_t,b_t,a_t)
+=
+\mathcal T(s_{t+1}\mid s_t,a_t)
+\mathbf 1[b_{t+1}=b_t-\kappa(a_t)]
+}
+\tag{3.2}
+$$<br />
+- $\mathcal T$：原环境状态如何变化。<br />
+- $\mathbf 1[\cdot]$：指示函数，保证预算按照真实成本更新。<br />
+<strong>状态转移同时包含环境变化和预算消耗。</strong></p>
+
+<h3 id="section-5">2.3 预算增强观察与策略</h3>
+
+<p>Agent 接收到的观察包含环境反馈和剩余预算：<br />
+$$
+\boxed{
+\tilde{\mathcal O}(o_{t+1},b\mid s_{t+1},b_{t+1},a_t)
+=
+\mathcal O(o_{t+1}\mid s_{t+1},a_t)
+\mathbf 1[b=b_{t+1}]
+}
+\tag{3.3}
+$$<br />
+对应预算条件策略：<br />
+$$
+\boxed{
+a_t\sim\pi(\cdot\mid x,h_t,b_t,B_0)
+}
+\tag{3.4}
+$$<br />
+- $x$：任务。<br />
+- $h_t$：交互历史。<br />
+- $B_0$：初始总预算。<br />
+- $b_t$：当前剩余预算。<br />
+例如：</p>
+
+<pre><code>&lt;budget&gt;
+Budget remaining: 3400 of 8000 tokens
+&lt;/budget&gt;
+</code></pre>
+
+<p>同时提供 $b_t$ 和 $B_0$，使 Agent 能判断剩余预算比例：<br />
+$$
+\frac{b_t}{B_0}
+$$<br />
+<strong>同一任务、相同环境历史下，预算不同，策略可以采取不同动作。</strong><br />
+<img src="/images/obsidian/bb3030984fa1.png" alt="Budget_图2_预算增强POMDP.png" width="680" /><br />
+Figure 2：Budget-Augmented POMDP。Agent 接收任务、历史、初始预算与剩余预算；环境执行动作后更新状态并扣除成本，再将新的预算信息以自然语言反馈给 Agent。</p>
+
+<h2 id="section-6">3. Episode 与预算条件训练</h2>
+
+<h3 id="section-7">3.1 Episode 初始化和终止</h3>
+
+<p>每次 Episode 分别采样任务和预算：<br />
+$$
+x\sim p_{\mathcal X},\qquad B_0\sim p_{\mathcal B}
+$$<br />
+初始剩余预算：<br />
+$$
+b_1=B_0
+$$<br />
+Episode 可以通过三种方式结束：<br />
+1. Agent 主动执行 <code>complete_task</code>。<br />
+2. 环境自身终止。<br />
+3. 达到最大步数 $T_{\max}$。<br />
+停止时间：<br />
+$$
+\boxed{
+\tau=\min\left(
+\inf\{t\geq1:a_t=a_\perp\},
+\tau_{\mathrm{env}},
+T_{\max}
+\right)
+}
+$$<br />
+其中 $a_\perp$ 是主动结束动作，$\inf$ 表示最早满足条件的时刻。<br />
+<strong>预算耗尽不一定导致 Episode 结束。</strong><br />
+允许 $b_t&lt;0$，即超预算执行，以便通过惩罚信号学习自主遵守预算。</p>
+
+<h3 id="section-8">3.2 标准化成本</h3>
+
+<p>完整轨迹：<br />
+$$
+\zeta=(o_1,a_1,\ldots,o_\tau,a_\tau,o_{\tau+1})
+$$<br />
+任务成功奖励：<br />
+$$
+R(\zeta)\in\{0,1\}
+$$<br />
+总资源消耗：<br />
+$$
+C(\zeta)=\sum_{t\leq\tau}\kappa(a_t)
+$$<br />
+标准化成本：<br />
+$$
+\boxed{
+\bar C(\zeta,B_0)=\frac{C(\zeta)}{B_0}
+}
+\tag{3.6}
+$$<br />
+- $\bar C\leq1$：预算内。<br />
+- $\bar C&gt;1$：超预算。<br />
+例如 $B_0=10$、$C=12$：<br />
+$$
+\bar C=1.2
+$$<br />
+表示超支 20%。<br />
+标准化成本让不同大小的预算可以使用统一的奖励设计。</p>
+
+<h3 id="section-9">3.3 训练目标</h3>
+
+<p>将二元任务奖励转换为预算条件奖励 $\tilde R$：<br />
+$$
+\boxed{
+\max_{\pi\in\Pi}
+\mathbb E_{
+x\sim p_{\mathcal X},
+B_0\sim p_{\mathcal B},
+\zeta\sim\pi(\cdot\mid x,B_0)
+}
+[\tilde R(\zeta,B_0)]
+}
+\tag{3.5}
+$$<br />
+<strong>核心：在不同任务和预算下最大化平均预算条件回报。</strong><br />
+论文采用 Dr. GRPO 训练：<br />
+- 保留组内奖励均值作为 Baseline。<br />
+- 去掉奖励标准差归一化。<br />
+- 去掉响应长度归一化。<br />
+简化优势：<br />
+$$
+A_i=R_i-\bar R
+$$<br />
+目的是减少归一化机制可能造成的长度偏差，避免干扰预算使用行为的学习。</p>
+
+<h2 id="section-10">4. Reward Design：如何教会 Agent 管理预算？</h2>
+
+<h3 id="section-11">4.1 奖励函数的设计维度</h3>
+
+<p>论文比较不同预算条件奖励，重点区分六种性质：<br />
+- <strong>Hard Cutoff</strong>：达到预算上限就停止。<br />
+- <strong>Budget Jump</strong>：超预算时奖励突然下降。<br />
+- <strong>Within-Budget Cost</strong>：预算内也惩罚资源消耗。<br />
+- <strong>Overspend Magnitude</strong>：超支越多，惩罚越重。<br />
+- <strong>Negative Failure Return</strong>：任务失败可能得到负奖励。<br />
+- <strong>Learned Price</strong>：学习预算对应的资源惩罚系数。</p>
+
+<h3 id="section-12">4.2 主要奖励形式</h3>
+
+<table>
+<thead>
+<tr>
+  <th>Reward</th>
+  <th>核心机制</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>Trunc</td>
+  <td>到达预算后强制截断</td>
+</tr>
+<tr>
+  <td>Gate</td>
+  <td>超预算后奖励变为 0</td>
+</tr>
+<tr>
+  <td>Gate-Neg</td>
+  <td>超预算给予负奖励</td>
+</tr>
+<tr>
+  <td>Rate</td>
+  <td>超预算扣除固定幅度、可学习的惩罚</td>
+</tr>
+<tr>
+  <td>Linear-Mag</td>
+  <td>根据超支幅度惩罚</td>
+</tr>
+<tr>
+  <td>Linear-Cost</td>
+  <td>从预算内就开始按成本线性惩罚</td>
+</tr>
+<tr>
+  <td>Sigmoid-Gate</td>
+  <td>超预算后采用平滑惩罚</td>
+</tr>
+<tr>
+  <td>Sigmoid</td>
+  <td>预算内外均进行平滑成本惩罚</td>
+</tr>
+<tr>
+  <td>Exp-Mag</td>
+  <td>超预算后成功奖励指数衰减</td>
+</tr>
+<tr>
+  <td>Dual</td>
+  <td>组合超支惩罚与成本惩罚，并学习价格</td>
+</tr>
+</tbody>
+</table>
+
+<p>其中几个代表性公式：<br />
+<strong>Gate：</strong><br />
+$$
+G=R\mathbf 1[C\le B]
+$$<br />
+超过预算直接将奖励设为 0，不区分超支多少。<br />
+<strong>Linear-Cost：</strong><br />
+$$
+G=R-\min\left(1,\frac{C}{2B}\right)
+$$<br />
+预算内也会随着资源消耗增加而降低奖励。<br />
+<strong>Exp-Mag：</strong><br />
+$$
+G=R\exp\left(-\frac{2(C-B)_+}{B}\right)
+$$<br />
+其中 $(C-B)_+=\max(C-B,0)$。<br />
+预算内不扣分，超预算越多，成功奖励越低。<br />
+<img src="/images/obsidian/d510152f0101.png" alt="Budget_图1_奖励形状与性质.png" width="680" /><br />
+Figure 1：不同预算条件奖励的形状。横轴为 Episode Cost $C$，纵轴为塑形后的回报 $G$；蓝色实线为成功（$R=1$）、橙色虚线为失败（$R=0$），灰色阴影为超预算区域（$C&gt;B$），Rate 和 Dual 的色带表示学习价格 $\Lambda_b\in[0,1]$ 的范围。</p>
+
+<h2 id="section-13">5. 实验发现与评价标准</h2>
+
+<p>作者不只评价任务成功，还比较：<br />
+- <strong>In-Budget Success</strong>：在预算内完成任务的比例。<br />
+- <strong>Natural Compliance</strong>：无需外部截断，Agent 主动遵守预算的比例。<br />
+- <strong>Utility</strong>：综合任务结果与预算成本的评价。<br />
+- <strong>Generalization</strong>：对未见预算及不同任务条件的适应能力。<br />
+讨论过的主要发现：<br />
+- 预算塑形奖励能够改善预算内成功率和自然遵守表现。<br />
+- <strong>Dual</strong>：跨预算的平均效用较稳健，与逐预算最佳方法的平均效用差距较小。<br />
+- <strong>Sigmoid-Gate</strong>：在单个预算上经常取得最高效用。<br />
+- <strong>Gate-Neg</strong>：通常具有较高的自然预算遵守率。<br />
+<img src="/images/obsidian/4092c870e34c.png" alt="Budget_图3_预算效用与遵守率.png" width="680" /><br />
+Figure 3：域内表现。不同预算 $b$ 下的预算效用 $\mathcal U(b)$ 与遵守率 $\mathrm{Comp}(b)$，依次为 AppWorld 的步数、Token、API 调用预算和 BabyAI 轮次预算；竖虚线为训练预算，其余点为训练时未见过的预算。<br />
+<strong>核心结论：不存在在成功率、效用、预算遵守率等所有指标上都最优的单一 Reward。</strong><br />
+这也是论文强调比较多种奖励函数，而不是只提出一个新奖励的原因。</p>
+
+<h2 id="section-14">6. 工程扩展讨论：多个资源约束</h2>
+
+<p>以下是阅读过程中讨论的工程推论，不是论文已经验证的多资源联合训练结果。<br />
+论文当前设置是每个环境、每种资源类型分别训练策略，并让单个策略适应不同预算。<br />
+如果工程上同时考虑 Token、时间和 API 调用，可以将标量预算扩展为向量：<br />
+$$
+\mathbf b_t=
+\begin{bmatrix}
+b_t^{\mathrm{token}}\\
+b_t^{\mathrm{time}}\\
+b_t^{\mathrm{API}}
+\end{bmatrix}
+$$<br />
+预算更新：<br />
+$$
+\boxed{
+\mathbf b_{t+1}
+=\mathbf b_t-\boldsymbol\kappa(a_t)
+}
+$$<br />
+相应策略：<br />
+$$
+a_t\sim\pi_\theta(\cdot\mid h_t,\mathbf b_t,\mathbf B_0)
+$$<br />
+但多种资源单位不同，如何平衡奖励权重仍是额外问题。<br />
+工程上可区分：<br />
+- <strong>RL Policy</strong>：学习如何高效使用资源。<br />
+- <strong>External Guardrails</strong>：强制执行不可违反的时间、费用或安全限制。<br />
+<strong>RL 学习主动遵守预算，不代表实际系统不再需要硬约束。</strong></p>
+
+<h2 id="section-15">7. 核心总结</h2>
+
+<p>这篇论文的关键不是提出新 Agent 架构，而是研究如何通过 Reward Design 训练可适应动态预算的 Multi-Turn Agent。<br />
+核心机制：<br />
+$$
+\boxed{
+\text{Budget-Conditioned POMDP}
++\text{Budget-Shaped Reward}
++\text{RL}
+}
+$$<br />
+主要洞察：<br />
+1. <strong>预算作为状态和观察的一部分</strong>：Agent 每轮根据总预算、剩余预算及环境反馈调整决策。<br />
+2. <strong>预算作为奖励约束</strong>：通过成本惩罚和超支反馈，让 Agent 学会资源分配与主动停止。<br />
+3. <strong>奖励形状影响行为</strong>：不同惩罚机制在任务成功、资源效率和自然遵守之间存在权衡。<br />
+4. <strong>单策略跨预算适应</strong>：不必为每个预算分别训练策略，可以通过动态预算训练学习条件化行为。<br />
+<strong>一句话总结：通过预算增强 POMDP 和预算条件奖励，让多轮 Agent 从单纯追求任务成功，转变为在不同资源约束下自主决定如何分配计算与交互预算。</strong></p>
+</article></div></div><button class="course-menu-button" aria-controls="course-navigation" aria-expanded="false">☰ 目录</button><script>const courseMenu=document.querySelector('.course-menu-button');const courseSidebar=document.querySelector('.course-sidebar');courseMenu.addEventListener('click',()=>{const open=courseMenu.getAttribute('aria-expanded')!=='true';courseMenu.setAttribute('aria-expanded',String(open));courseSidebar.classList.toggle('is-open',open);});courseSidebar.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}));document.addEventListener('keydown',e=>{if(e.key==='Escape'){courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}});</script><script>window.MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js"></script></main><footer class="footer"><span>© 2026 Nathen</span><span>学习、构建与记录。</span></footer></div></body></html>

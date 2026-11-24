@@ -243,3 +243,40 @@ DeepSeek - R1 GPRO增加推理能力</p>
 
 <p>RLHF - PPO<br />
 在于数据库content内容是空,因为要强化学习自己生成</p>
+
+<h2>DPO 实现记录</h2>
+<p>DPO<br />
+核心：不用 reward 模型，直接按答案偏好训练 → 直接看学霸和学渣的答案对比着学</p>
+
+<table>
+<thead>
+<tr>
+  <th></th>
+  <th>PPO</th>
+  <th>DPO</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>流程</td>
+  <td>西瓜是？→ “圆的” +9，“方的” −5 → 向圆的方向调整</td>
+  <td>直接给数据，向圆的方向调整参数</td>
+</tr>
+<tr>
+  <td>数据</td>
+  <td>prompt，回答由 Actor 自己生成</td>
+  <td><code>{&quot;prompt&quot;: &quot;西瓜是？&quot;, &quot;win&quot;: &quot;圆的&quot;, &quot;lose&quot;: &quot;方的&quot;}</code></td>
+</tr>
+<tr>
+  <td>模型</td>
+  <td>Actor + Critic + Reward + Ref</td>
+  <td>只剩 Actor + Ref</td>
+</tr>
+</tbody>
+</table>
+
+<p>架构上 DPO 直接去掉了 Critic 和 Reward → 大大减少显存占用，提高运算速度<br />
+<img src="/images/obsidian/5e64cfc7b8f6.png" alt="Pasted image 20261104190000.png" width="500" /><br />
+- Ref 和 Actor 分别算 win 和 lose 回答的概率<br />
+- 对比：提高 Actor <strong>相对于 Ref</strong> 生成 win 的程度（同时压低 lose）<br />
+- 对应 loss 里的 $\beta\log\frac{\pi_\theta(y_w|x)}{\pi_{ref}(y_w|x)} - \beta\log\frac{\pi_\theta(y_l|x)}{\pi_{ref}(y_l|x)}$，推导见下面「DPO 数学原理」</p>

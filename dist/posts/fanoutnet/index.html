@@ -1,0 +1,140 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="description" content="个人主页、项目与学习笔记"><title>FanoutNet：强化学习与 PCB 扇出自动化 · Nathen</title><link rel="stylesheet" href="/style.css?v=552509ee2b5d"><link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231769aa'/%3E%3Cpath d='M9 8h14v16H9zM12 13h8M12 17h8' fill='none' stroke='white' stroke-width='2'/%3E%3C/svg%3E"></head><body><div class="shell"><header class="header"><a class="name" href="/">Nathen</a><nav class="nav" aria-label="主导航"><a href="/">首页</a><a href="/blogs/?v=552509ee2b5d" aria-current="page">博客</a><a href="/projects/?v=552509ee2b5d">项目</a></nav></header><main id="main-content"><a class="back" href="/blogs/?v=552509ee2b5d#ai-eda">返回AI for EDA</a><p class="eyebrow">AI for EDA</p><h1>FanoutNet：强化学习与 PCB 扇出自动化</h1><p class="lead">2026 年 11 月 24 日 · 学习笔记</p><div class="course-layout"><aside id="course-navigation" class="course-sidebar"><div class="sidebar-heading">本文目录</div><nav aria-label="本文目录"><a class="toc-level-3" href="#section-1">1. 研究背景与核心问题</a><a class="toc-level-3" href="#section-2">2. Fanout 与 Routing 的数学建模</a><a class="toc-level-4" href="#section-3">2.1 PCB Fanout Problem</a><a class="toc-level-4" href="#section-4">2.2 PCB Routing Problem</a><a class="toc-level-3" href="#section-5">3. FanoutNet 整体架构</a><a class="toc-level-4" href="#section-6">3.1 完整工作流程</a><a class="toc-level-4" href="#section-7">3.2 Multi-Constraint Router</a><a class="toc-level-3" href="#section-8">4. State Representation（状态表示）</a><a class="toc-level-4" href="#section-9">4.1 Spatial Feature（空间特征）</a><a class="toc-level-4" href="#section-10">4.2 Structured Feature（结构化特征）</a><a class="toc-level-4" href="#section-11">4.3 为什么需要两种特征？</a><a class="toc-level-3" href="#section-12">5. 神经网络结构与强化学习</a><a class="toc-level-4" href="#section-13">5.1 网络结构</a><a class="toc-level-4" href="#section-14">5.2 动作选择</a><a class="toc-level-3" href="#section-15">6. Reward：布通率</a><a class="toc-level-4" href="#section-16">6.1 为什么用布通率作为 Reward？</a><a class="toc-level-4" href="#section-17">6.2 Reward 的特点</a><a class="toc-level-3" href="#section-18">7. FanoutNet 与 PCBWorld 的区别</a><a class="toc-level-3" href="#section-19">8. 总结</a></nav><nav class="local-toc"><a href="/blogs/?v=552509ee2b5d#ai-eda">返回AI for EDA</a></nav></aside><div class="course-main"><article class="prose course-note"><p>论文：AAAI 2023</p>
+
+<h2 id="section-1">1. 研究背景与核心问题</h2>
+
+<p>PCB（Printed Circuit Board）包含大量需要相互连接的元件引脚。在高密度 PCB 中，芯片引脚排列紧密，直接进行完整布线容易出现空间不足、线路交叉及过孔过多等问题。<strong>Fanout（扇出）</strong>：在正式布线前，先为密集引脚确定合适的出口位置，必要时利用过孔将线路引到其他层，为后续布线创造空间。<strong>Router（布线器）</strong>：根据引脚和扇出位置，计算真正的铜线路径，完成不同网络之间的连接。两者区别：<strong>Fanout</strong> 决定线路从哪里引出来；<strong>Routing</strong> 决定线路如何经过 PCB，最终连接到哪里。<br />
+<img src="/images/obsidian/0d6e166cd9c6.png" alt="FanoutNet_图1_扇出与布线.png" width="560" /></p>
+
+<blockquote>
+  <p>论文图 1：(a) 未布线布局与网络连线；(b) 扇出结果（Fanout location）；(c) 完整布线结果（Wire、Via）。</p>
+</blockquote>
+
+<p>传统扇出方法依赖人工经验或启发式规则。由于扇出位置会影响后续完整布线的质量，论文希望使用深度强化学习自动优化扇出决策。<strong>核心问题</strong>：如何学习合适的 PCB 扇出位置，使传统自动布线器更容易完成全部连接，并减少线长与过孔？</p>
+
+<h2 id="section-2">2. Fanout 与 Routing 的数学建模</h2>
+
+<h3 id="section-3">2.1 PCB Fanout Problem</h3>
+
+<p>给定：$L$ 多层 PCB 的布局；$N$ 网络（Net）集合；$P$ 引脚（Pin）集合；$C$ 布线约束。<strong>Net（网络）</strong>：电气上需要相互连接的一组引脚，一个网络可以包含多个引脚。论文使用 MST（Minimum Spanning Tree，最小生成树）表示多引脚网络的连接拓扑，将其组织为便于处理的连接关系。Fanout 的目标是为引脚选择扇出位置，同时减少网络的拓扑交叉：<br />
+$$\min \sum_{n\in N}T_c(n)\quad \text{s.t. }C$$<br />
+$T_c(n)$：网络 $n$ 的拓扑交叉数量；$\sum_{n\in N}T_c(n)$：所有网络的拓扑交叉总量；$\text{s.t. }C$：必须满足设计约束。<strong>Topological Crossing（拓扑交叉）</strong>：网络连接关系在布局上出现交叉，不一定等同于真实铜线短路，但会增加后续布线难度。Fanout 不直接优化完整线路，而是先选择合理出口，尽量减少交叉。</p>
+
+<h3 id="section-4">2.2 PCB Routing Problem</h3>
+
+<p>给定多层 PCB 和已经确定的扇出结果 $F$，Router 必须完成网络连接，并满足约束。论文写为：<br />
+$$\max\quad Routability-Viacount-Wirelength\quad \text{s.t. }C$$<br />
+<strong>Routability</strong>：布通率或可布通性，越高越好；<strong>Via Count</strong>：过孔数量，越少越好；<strong>Wirelength</strong>：总走线长度，越短越好；<strong>$C$</strong>：线宽、间距等设计约束。该式表达多目标优化意图，没有在这里展开各指标的权重或归一化细节。<strong>关系</strong>：PCB Layout → FanoutNet 生成扇出方案 $F$ → Router 执行完整布线 → 评价最终布线质量。因此 FanoutNet 属于 <strong>Indirect Routing（间接布线）</strong>：RL 负责前期扇出决策，完整线路由固定的 Router 生成。</p>
+
+<h2 id="section-5">3. FanoutNet 整体架构</h2>
+
+<p><img src="/images/obsidian/756951c2f488.png" alt="FanoutNet_图2_整体架构.png" width="680" /></p>
+
+<blockquote>
+  <p>论文图 2：上方是 PCB 状态、FanoutNet 动作、状态更新、Multi-Constraint Router 和 Reward 的完整流程；左下是 Attention + CNN + Policy/Value MLP，右下是多约束 A* 布线器。</p>
+  
+  <h3 id="section-6">3.1 完整工作流程</h3>
+</blockquote>
+
+<ol>
+<li>将原始 PCB Design 转换为状态 $state_0$。2. FanoutNet 根据当前状态输出扇出动作。3. 执行动作，更新 PCB 状态。4. 重复决策，直到得到完整扇出结果 $F$。5. Multi-Constraint Router 根据扇出位置完成实际布线。6. 根据最终布线结果计算 Reward，用于训练 FanoutNet。可以表示为：<br />
+$$s_0\xrightarrow{a_0}s_1\xrightarrow{a_1}\cdots\xrightarrow{a_{T-1}}s_T\xrightarrow{\mathrm{Router}}R$$<br />
+<strong>关键点</strong>：强化学习学习的是扇出策略，最终布通效果需要通过 Router 来验证。<br />
+<h3 id="section-7">3.2 Multi-Constraint Router</h3></li>
+</ol>
+
+<p>论文中的传统布线器主要执行：<strong>Initialize Routing Map</strong>（初始化布线地图）→ <strong>Set Fanout Locations</strong>（将扇出位置设为布线起点或终点）→ <strong>A* Path Searching</strong>（利用 A* 搜索实际连接路径）→ <strong>Output Routing Result</strong>（输出最终布线结果）。A* 是启发式路径搜索算法，利用路径代价和到目标的估计代价选择搜索方向。Router 不由 FanoutNet 的 Policy MLP 代替，而是一个独立的布线阶段。</p>
+
+<h2 id="section-8">4. State Representation（状态表示）</h2>
+
+<p>FanoutNet 使用两类特征共同表示 PCB：<strong>Spatial Feature</strong> 描述空间布局；<strong>Structured Feature</strong> 描述网络的坐标、连接关系与扇出状态。</p>
+
+<h3 id="section-9">4.1 Spatial Feature（空间特征）</h3>
+
+<p>定义 $S\in\mathbb{R}^{L\times H\times W}$，其中 $L$ 为 PCB 层数，$H,W$ 为每层二维表示的高度和宽度，相当于把多层 PCB 表示成多通道二维图像。图像包含：引脚、边界和障碍物、已经生成的导线、已经放置的过孔。随着 Agent 执行新动作，新的走线与过孔会被更新到空间表示中。<strong>处理方式</strong>：将图像输入 CNN，提取 PCB 空间布局特征。</p>
+
+<h3 id="section-10">4.2 Structured Feature（结构化特征）</h3>
+
+<p>论文将网络信息表示为向量序列 $M\in\mathbb{R}^{T\times6}$，并列出单个网络向量：<br />
+$$m_t=(x_t^1,y_t^1,z_t^1,x_t^2,y_t^2,z_t^2,b)$$<br />
+$(x_t^1,y_t^1,z_t^1)$：第一个位置的三维坐标；$(x_t^2,y_t^2,z_t^2)$：第二个位置的三维坐标；$b$：是否已完成扇出的标志位。当 $b=0$ 时，坐标描述引脚位置；当 $b=1$ 时，坐标描述扇出位置。初始时各网络尚未完成扇出，$b$ 均为 0。<strong>注意</strong>：原文写 $T\times6$，但随后列出的向量包含 6 个坐标和 1 个布尔值，共 7 项，存在维度描述不一致的问题。<strong>处理方式</strong>：结构化特征经过 Embedding 和 Attention Network，学习网络之间的关系。</p>
+
+<h3 id="section-11">4.3 为什么需要两种特征？</h3>
+
+<p><strong>Spatial Feature + CNN</strong>：学习哪里有空间、哪里有障碍、现有线路怎样分布。<strong>Structured Feature + Attention</strong>：学习哪些网络需要扇出、引脚在哪里、网络之间存在什么关系。两种特征互补，最终拼接后用于决策。</p>
+
+<h2 id="section-12">5. 神经网络结构与强化学习</h2>
+
+<h3 id="section-13">5.1 网络结构</h3>
+
+<p><img src="/images/obsidian/961f054c21b0.png" alt="FanoutNet_图2局部_神经网络.png" width="560" /></p>
+
+<blockquote>
+  <p>论文图 2 左下：结构化特征经过 Embedding 和 Attention，空间特征经过 CNN，两路输出拼接后分别送入 Policy MLP 和 Value MLP。</p>
+</blockquote>
+
+<p>整体流程：Structured Features → Attention Network；Spatial Features → CNN；两路特征拼接（Concatenation）→ Policy MLP / Value MLP。<strong>Policy Network（Actor）</strong>：输出不同扇出动作的概率，决定下一步动作。<strong>Value Network（Critic）</strong>：评估当前状态的未来预期回报，辅助强化学习训练。这是典型的 Actor-Critic 结构。</p>
+
+<h3 id="section-14">5.2 动作选择</h3>
+
+<p>FanoutNet 为候选扇出动作分配概率，形成策略分布 $\pi_\theta(a\mid s)$，表示在当前状态 $s$ 下选择动作 $a$ 的概率。每一步从策略分布中采样动作，并更新状态。论文指出，在给定当前状态和所选动作后，环境转移是确定性的；动作选择本身则来自策略的概率分布。</p>
+
+<h2 id="section-15">6. Reward：布通率</h2>
+
+<p>论文根据完整布线结果计算奖励：<br />
+$$R=\frac{N_{\mathrm{succ}}}{N_{\mathrm{total}}}$$<br />
+$N_{\mathrm{succ}}$：成功完成布线的网络数量；$N_{\mathrm{total}}$：需要布线的网络总数量；$R$：布通率（Routability），范围为 $[0,1]$。例如共有 100 个网络，其中 90 个成功连接：$R=\frac{90}{100}=0.9$，即布通率为 90%。</p>
+
+<h3 id="section-16">6.1 为什么用布通率作为 Reward？</h3>
+
+<p>FanoutNet 只选择扇出位置，无法单独判断这些位置能否让完整 PCB 成功布线。因此必须：1. 先产生完整扇出结果；2. 调用 Router 尝试连接网络；3. 使用最终布通率评价扇出方案。<strong>扇出方案越有利于 Router 完成连接，Reward 越高。</strong></p>
+
+<h3 id="section-17">6.2 Reward 的特点</h3>
+
+<p>这里的 Reward 主要来自最终完整布线结果，而不是每选择一个扇出位置就直接计算一次完整布通率。这种反馈能够对齐最终任务目标，但奖励相对稀疏，模型需要学习前期扇出动作对后续整体布线结果的影响。<strong>注意</strong>：布通率达到 100% 表示全部网络完成连接，但不代表线长、过孔和所有工程质量指标都已经最优。</p>
+
+<h2 id="section-18">7. FanoutNet 与 PCBWorld 的区别</h2>
+
+<table>
+<thead>
+<tr>
+  <th>维度</th>
+  <th>FanoutNet</th>
+  <th>PCBWorld</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>研究目标</td>
+  <td>学习更好的扇出策略</td>
+  <td>构建统一的 PCB Agent 交互与评测环境</td>
+</tr>
+<tr>
+  <td>Agent 控制内容</td>
+  <td>引脚扇出位置</td>
+  <td>原生布线动作</td>
+</tr>
+<tr>
+  <td>完整走线</td>
+  <td>交给固定的传统 Router</td>
+  <td>通过 KiCad 原生引擎逐步执行</td>
+</tr>
+<tr>
+  <td>方法特点</td>
+  <td>间接布线</td>
+  <td>Engine-Grounded 交互</td>
+</tr>
+<tr>
+  <td>强化学习任务</td>
+  <td>优化 Fanout 决策</td>
+  <td>优化完整布线过程的动作决策</td>
+</tr>
+</tbody>
+</table>
+
+<p>FanoutNet 体现了 <strong>AI 决定高层布线前置条件，传统算法完成底层路径规划</strong> 的思路。PCBWorld 则进一步让 Agent 参与具体布线阶段的逐步操作。</p>
+
+<h2 id="section-19">8. 总结</h2>
+
+<p><strong>FanoutNet 的核心思想</strong>：使用深度强化学习自动选择 PCB 扇出位置，通过后续传统自动布线器的实际布通表现，反向优化扇出策略。关键技术：<strong>Fanout</strong>——为密集引脚规划出口位置；<strong>Routing</strong>——完成所有网络的实际走线；<strong>Topological Crossing</strong>——扇出阶段希望减少的网络拓扑交叉；<strong>Spatial Feature + CNN</strong>——提取 PCB 的空间几何信息；<strong>Structured Feature + Attention</strong>——提取网络连接和扇出状态信息；<strong>Policy / Value Network</strong>——分别负责动作选择和状态价值估计；<strong>Multi-Constraint Router + A*</strong>——基于扇出结果完成布线；<strong>Routability Reward</strong>——根据成功布通网络的比例训练强化学习策略。<br />
+<strong>一句话总结：FanoutNet 不直接学习整个 PCB 的线路怎么画，而是学习如何把引脚合理地引出来，让传统 Router 更容易完成后续布线。</strong></p>
+</article></div></div><button class="course-menu-button" aria-controls="course-navigation" aria-expanded="false">☰ 目录</button><script>const courseMenu=document.querySelector('.course-menu-button');const courseSidebar=document.querySelector('.course-sidebar');courseMenu.addEventListener('click',()=>{const open=courseMenu.getAttribute('aria-expanded')!=='true';courseMenu.setAttribute('aria-expanded',String(open));courseSidebar.classList.toggle('is-open',open);});courseSidebar.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>{courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}));document.addEventListener('keydown',e=>{if(e.key==='Escape'){courseMenu.setAttribute('aria-expanded','false');courseSidebar.classList.remove('is-open');}});</script><script>window.MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']}};</script><script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml.js"></script></main><footer class="footer"><span>© 2026 Nathen</span><span>学习、构建与记录。</span></footer></div></body></html>

@@ -1,0 +1,347 @@
+<p>论文：https://arxiv.org/abs/2508.03680</p>
+
+<h2>1. 研究问题：Agent 与 RL 训练的耦合</h2>
+
+<p>现有 Agent RL 训练存在两个主要问题：<br />
+<strong>① Training-Agent Tight Coupling（紧耦合）</strong><br />
+- RL 训练代码需要了解 Agent 的执行逻辑、工具调用和状态变化。<br />
+- 更换 Agent 框架或 RL 算法时，可能需要重新修改训练流程。<br />
+- 复杂 Agent 涉及多轮工具调用、动态工作流和环境反馈，难以直接集成传统 RL 框架。<br />
+<strong>② Sequence Concatenation &amp; Masking（序列拼接与掩码）</strong><br />
+传统多轮 RL 通常将整条交互轨迹拼成一个长序列：<br />
+$$
+\text{Action}_1\rightarrow\text{Observation}_1
+\rightarrow\text{Action}_2\rightarrow\cdots
+$$<br />
+训练时需要 Mask 环境生成的 Observation Token，只对 LLM 输出计算策略损失。<br />
+这种方法存在长上下文、位置编码、复杂工作流适配等问题。<br />
+<strong>Agent Lightning 的核心思想：将 Agent Execution 与 RL Training 解耦，通过统一数据接口连接两者。</strong><br />
+<img src="/images/obsidian/1907dfd98b66.png" alt="AgentLightning_图1_整体思想.png" width="680" /><br />
+Figure 1：Agent Lightning 整体思想。Agent 执行任务 → 收集 Training Trajectories → RL Engine 更新模型 → Agent 使用更新后的模型。</p>
+
+<h2>2. 核心架构：Training-Agent Disaggregation</h2>
+
+<p>Agent Lightning 将执行和训练划分为两个独立部分：</p>
+
+<table>
+<thead>
+<tr>
+  <th>模块</th>
+  <th>主要职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>Agent Client</td>
+  <td>执行任务、调用工具、处理环境反馈、产生轨迹和奖励</td>
+</tr>
+<tr>
+  <td>RL Server</td>
+  <td>提供 LLM 推理 API、管理训练、更新模型参数</td>
+</tr>
+</tbody>
+</table>
+
+<p>两者通过接口通信：<br />
+$$
+\text{Agent Execution}
+\xrightarrow{\text{Rewarded Traces}}
+\text{RL Trainer}
+$$<br />
+$$
+\text{RL Trainer}
+\xrightarrow{\text{Updated Model API}}
+\text{Agent Execution}
+$$<br />
+<strong>独立运行</strong>指两边不依赖对方的内部实现，而不是完全不通信。<br />
+- LangChain、AutoGen 或自定义 Agent 可以使用同一套训练服务。<br />
+- 更换 PPO、GRPO 等训练算法，不必重写 Agent 的工具调用逻辑。<br />
+- Agent 可运行在普通服务器，模型推理和训练可运行在 GPU 服务器。<br />
+这种设计也用于缓解 <strong>Sampling Bottleneck（采样瓶颈）</strong>：复杂 Agent Rollout 包含多次推理、工具调用和环境交互，生成训练数据可能比模型参数更新更慢。</p>
+
+<h2>3. Unified Data Interface：统一执行数据表示</h2>
+
+<p>统一接口是解耦的基础：不要求 RL 系统理解 Agent 内部代码，而是统一记录执行状态、组件调用及奖励。</p>
+
+<h3>3.1 State：语义变量构成的执行快照</h3>
+
+<p>Agent 的执行过程使用 MDP 表示：<br />
+$$
+s_t\xrightarrow{a_t}s_{t+1}
+$$<br />
+其中 State 是某个时刻的 <strong>Execution Snapshot（执行快照）</strong>。<br />
+$$
+\boxed{
+\operatorname{state}_t(x,k)
+=\{\operatorname{variable}_i^{x,k,t}\}_{i=1}^{V}
+}
+\tag{1}
+$$<br />
+- $x$：任务。<br />
+- $k$：任务的第 $k$ 次执行（Rollout）。<br />
+- $t$：当前执行时刻。<br />
+- $V$：语义变量数量。<br />
+<strong>Semantic Variable（语义变量）</strong> 指影响任务执行的关键变量，而不是所有程序内部变量。<br />
+例如 RAG Agent：<br />
+$$
+\operatorname{state}=\{U,Q,P,A\}
+$$<br />
+- $U$：User Input。<br />
+- $Q$：Query。<br />
+- $P$：Passages。<br />
+- $A$：Answer。<br />
+变量随着组件执行逐渐被赋值或修改。</p>
+
+<h3>3.2 Call：组件调用</h3>
+
+<p>一次完整执行由多次组件调用组成：<br />
+$$
+\boxed{
+\operatorname{execution}(x,k)
+=\{\operatorname{call}_i^{x,k}\}_{i=1}^{N}
+}
+\tag{2}
+$$<br />
+每次调用定义为：<br />
+$$
+\boxed{
+\operatorname{call}_i=(\operatorname{meta}_i,\operatorname{input}_i,\operatorname{output}_i)
+}
+$$<br />
+- <code>meta</code>：组件名称、类型、版本、API、温度等运行信息。<br />
+- <code>input</code>：组件输入。<br />
+- <code>output</code>：组件输出。<br />
+- $N$：本次执行的组件调用总数。<br />
+组件可以是 LLM，也可以是 Search、数据库等工具。<br />
+输入输出来自不同时刻的状态：<br />
+$$
+\operatorname{input}_i\in\operatorname{state}_{t_1},
+\qquad
+\operatorname{output}_i\in\operatorname{state}_{t_2}
+\tag{4}
+$$<br />
+一次调用只需读取或更新部分语义变量，不需要访问整个 State。</p>
+
+<h3>3.3 Rewarded Execution：为组件调用关联奖励</h3>
+
+<p>$$
+\boxed{
+\operatorname{execution}^{R}(x,k)
+=\{(\operatorname{call}_i^{x,k},r_i^{x,k})\}_{i=1}^{N}
+}
+\tag{5}
+$$<br />
+即从：<br />
+$$
+(\text{meta},\text{input},\text{output})
+$$<br />
+变成：<br />
+$$
+(\text{meta},\text{input},\text{output},r)
+$$<br />
+奖励可以是：<br />
+- <strong>Intermediate Reward</strong>：中间步骤奖励，例如工具调用成功。<br />
+- <strong>Terminal Reward</strong>：任务完成后获得的奖励。<br />
+实际任务经常只有终局奖励，即 Sparse Reward。<br />
+训练数据集 $\mathcal X$ 是任务集合，同一任务可以执行多次，形成不同的 Rollout。</p>
+
+<h3>3.4 示例：RAG Agent</h3>
+
+<p>一个 RAG Agent 的执行流程：<br />
+$$
+U\xrightarrow{\mathrm{LLM}}Q
+\xrightarrow{\mathrm{Search}}P
+\xrightarrow{\mathrm{LLM}}A
+$$<br />
+最后通过奖励函数评价答案：<br />
+$$
+R=\operatorname{RAG\_F1}(A,x)
+$$<br />
+完整调用记录：</p>
+
+<table>
+<thead>
+<tr>
+  <th>Component</th>
+  <th>Input</th>
+  <th>Output</th>
+  <th>Reward</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>LLM</td>
+  <td>U</td>
+  <td>Q</td>
+  <td>NA</td>
+</tr>
+<tr>
+  <td>Search</td>
+  <td>Q</td>
+  <td>P</td>
+  <td>NA</td>
+</tr>
+<tr>
+  <td>LLM</td>
+  <td>(U,P)</td>
+  <td>A</td>
+  <td>R</td>
+</tr>
+</tbody>
+</table>
+
+<p><code>NA</code> 表示没有单独提供奖励，不等于奖励为 0。<br />
+<img src="/images/obsidian/0bcff2231962.png" alt="AgentLightning_图2_统一数据接口.png" width="680" /><br />
+Figure 2：统一数据接口。左侧：U、Q、P、A 随执行逐渐更新；中间：记录所有组件的调用和奖励；右侧：提取需要训练的 LLM 调用。</p>
+
+<h2>4. LightningRL：从复杂轨迹到独立训练样本</h2>
+
+<h3>4.1 RL Data Extraction</h3>
+
+<p>针对待优化模型 $\pi_\theta$，从完整记录中只提取该模型的调用：<br />
+$$
+\boxed{
+\operatorname{execution}^{RL}(x,k)
+=\{(\operatorname{input}_t^{x,k},
+\operatorname{output}_t^{x,k},
+r_t^{x,k})\}_{t=1}^{T}
+}
+\tag{6}
+$$<br />
+$$
+\operatorname{output}_t^{x,k}
+=\pi_\theta(\operatorname{input}_t^{x,k})
+\tag{7}
+$$<br />
+其中 $T$ 是本次执行中待优化 LLM 的调用次数。<br />
+对于上述 RAG：<br />
+$$
+(U,Q,\mathrm{NA})
+$$<br />
+$$
+((U,P),A,R)
+$$<br />
+Search 调用不作为 LLM 训练样本，但检索结果 $P$ 仍保留在后续 LLM 输入中。<br />
+<strong>Training Trajectory 与 CoT 的区别：</strong><br />
+- CoT：模型生成的推理过程。<br />
+- Training Trajectory：完整执行记录，包含动作、环境反馈、组件调用及奖励，也可能包含 CoT。</p>
+
+<h3>4.2 与传统 Multi-turn GRPO 的区别</h3>
+
+<p><strong>传统 Multi-turn GRPO：</strong><br />
+- 将多轮 LLM 输出和环境反馈拼成一条长序列。<br />
+- 使用 Mask 排除环境产生的 Token。<br />
+- 整条轨迹作为训练数据组织单位。<br />
+<strong>LightningRL：</strong><br />
+- 将完整执行拆分为独立 LLM 调用。<br />
+- 每条训练样本都有自己的 Input、Output 和 Reward。<br />
+- 环境反馈保留在下一次调用的 Input 中。<br />
+- Loss 只针对 LLM Output，不必再将环境反馈拼进去然后 Mask。<br />
+这里的<strong>独立</strong>指训练样本可以分别处理，不代表执行时各轮没有依赖关系。下一轮 Input 仍可包含先前的环境反馈。<br />
+<img src="/images/obsidian/91da5e8fa937.png" alt="AgentLightning_图3_LightningRL对比.png" width="680" /><br />
+Figure 3：Single-call GRPO / Previous Multi-turn GRPO / LightningRL<br />
+- (a) 单次调用：同一任务生成多个回答，按奖励分组。<br />
+- (b) 多轮拼接：绿色是 LLM 输出，虚线方块是被 Mask 的环境反馈。<br />
+- (c) 拆分调用：橙色 Input 包含所需上下文，绿色 Output 表示不同调用，颜色深浅用于区分输出。<br />
+- <code>state(x,0)</code>、<code>state(x,1)</code>、<code>state(x,2)</code>：同一任务的不同 Rollout 编号，不是时间步。</p>
+
+<h3>4.3 Two-stage Credit Assignment（两阶段信用分配）</h3>
+
+<p>LightningRL 将信用分配拆为两步：<br />
+$$
+\boxed{
+\text{Episode Reward}
+\rightarrow
+\text{LLM Call Reward}
+\rightarrow
+\text{Token Advantage}
+}
+$$<br />
+<strong>第一步：Episode → Call</strong><br />
+把完整任务的回报分配给不同 LLM 调用。<br />
+本文当前实现采用简单方案：同一条轨迹内各次调用共享最终回报 $R$。<br />
+<strong>第二步：Call → Token</strong><br />
+使用已有单轮 RL 算法，计算 Token Advantage 并更新模型。<br />
+好处：<br />
+- 复用 GRPO、PPO、REINFORCE++ 等训练方法。<br />
+- Input 可灵活采用历史摘要、Prompt 模板或角色指令。<br />
+- 不依赖复杂的长序列拼接和额外掩码。<br />
+- 将长轨迹拆成调用批次，便于批量训练和梯度累积。</p>
+
+<h3>4.4 策略梯度优化目标</h3>
+
+<p>$$
+\boxed{
+\mathcal L(\theta)=
+-\mathbb E\left[
+\sum_{j=1}^{N}
+\log\pi_\theta(y_j\mid x,y_{&lt;j})A_j
+\right]
+}
+\tag{8}
+$$<br />
+- $y_j$：第 $j$ 个 Token。<br />
+- $\pi_\theta(y_j\mid x,y_{&lt;j})$：模型生成该 Token 的概率。<br />
+- $A_j$：该 Token 的优势。<br />
+当 $A_j&gt;0$ 时，训练倾向于提高该 Token 的概率；反之降低。<br />
+不同算法的主要区别之一是优势估计：<br />
+- <strong>PPO</strong>：使用 Critic 和价值函数。<br />
+- <strong>GRPO</strong>：通过同组采样奖励的均值、标准差归一化。<br />
+- <strong>REINFORCE++</strong>：使用整个 Batch 的平均奖励作为基线。<br />
+实际算法还可能包含 Clipping 等机制。</p>
+
+<h2>5. System Design：训练与执行的工程实现</h2>
+
+<h3>5.1 Client–Server 架构</h3>
+
+<p><img src="/images/obsidian/9f303c581acd.png" alt="AgentLightning_图4_训练执行解耦架构.png" width="680" /><br />
+Figure 4：Training-Agent Disaggregation Architecture<br />
+- RL Server：LLM Engine、Trainer、任务调度和数据通信。<br />
+- Agent Client：运行 LangChain、AutoGen 或自定义 Agent。<br />
+- Server → Client：更新后的模型 API。<br />
+- Client → Server：Rewarded Traces。<br />
+Server 管理任务分发；Client 独立运行 Agent，收集数据，再返回训练端。</p>
+
+<h3>5.2 Agent Runtime</h3>
+
+<p><strong>Data Parallelism</strong><br />
+- 节点内：一个 Client 启动多个 Worker。<br />
+- 节点间：多台机器分别运行 Worker。<br />
+- 目的：提高 Rollout 吞吐量，缓解采样瓶颈。<br />
+<strong>Automatic Instrumentation（自动插桩）</strong><br />
+- 利用 OpenTelemetry、AgentOps 自动记录 Trace、LLM 调用及环境交互。<br />
+- 减少对原有 Agent 代码的修改。<br />
+- 也可以通过 API 端点进行轻量追踪。<br />
+<strong>Error Handling</strong><br />
+- 检测程序崩溃、网络中断和超时。<br />
+- 失败任务可以重试或重新分配。<br />
+- 避免单个异常拖垮整个训练过程。<br />
+<strong>AIR（Automatic Intermediate Reward）</strong><br />
+- 将执行监控信息转换为中间奖励。<br />
+- 用更频繁的反馈缓解终局奖励稀疏的问题。<br />
+<strong>Environment &amp; Reward Service</strong><br />
+- 简单环境和奖励计算可以与 Worker 同机运行。<br />
+- 高成本模拟器或复杂奖励函数可以使用共享服务。</p>
+
+<h2>6. 扩展到不同 Agent</h2>
+
+<p><strong>单 LLM、多角色</strong><br />
+同一个模型通过不同 Prompt 承担搜索、回答等角色。<br />
+可以选择性优化特定角色对应的调用。<br />
+<strong>多 LLM、多 Agent</strong><br />
+多个模型有独立的策略参数。<br />
+- 独立训练：分别优化模型，但可能忽略相互依赖。<br />
+- Multi-Agent RL：联合考虑 Agent 之间的合作与竞争。<br />
+<strong>任务适用性</strong><br />
+- Coding RL：通过代码修改、测试反馈和奖励训练编程 Agent。<br />
+- RAG：通过奖励优化检索词生成和回答策略。<br />
+- 复杂交互任务：包含多轮动作、工具调用和动态环境反馈。<br />
+MCP 负责标准化 Agent 与工具的连接；Agent Lightning 关注 Agent 执行数据如何连接 RL 训练，两者解决的问题不同。</p>
+
+<h2>7. 核心总结</h2>
+
+<p>Agent Lightning 的贡献可以归纳为三个层次：<br />
+1. <strong>统一数据抽象</strong>：用 State、Call、Rewarded Execution 表示不同 Agent 的执行过程。<br />
+2. <strong>LightningRL</strong>：将复杂多轮轨迹提取为独立 LLM 调用，并通过两阶段信用分配复用单轮 RL 算法。<br />
+3. <strong>Training-Agent Disaggregation</strong>：通过 Client–Server 架构，解耦 Agent 工作流与 RL 模型训练。<br />
+<strong>核心思想：不必为了 RL 重写 Agent，也不必把整个多轮工作流拼成一条长序列；通过标准化执行数据、拆分训练样本和独立部署，让现有 RL 训练方法适用于不同的 Agent。</strong></p>

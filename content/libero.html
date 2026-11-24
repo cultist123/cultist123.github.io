@@ -1,0 +1,376 @@
+<p>论文：https://arxiv.org/abs/2306.03310</p>
+
+<h2>1. 研究背景与核心问题</h2>
+
+<p><strong>LIBERO</strong> 是一个研究机器人终身学习（Lifelong Robot Learning）的 Benchmark，主要评估机器人能否依次学习多个操作任务，将旧任务知识迁移到新任务，并避免灾难性遗忘。<br />
+<strong>General-Purpose Agent（通用智能体）</strong>：能够完成多种不同任务，而不是只针对固定任务设计的智能体。<br />
+<strong>Lifelong Learning（终身学习）</strong>：模型在整个生命周期中持续学习新知识和技能，同时尽可能保留旧能力。<br />
+例如机器人先学习抓杯子，再学习打开抽屉，最后学习把杯子放进抽屉。理想情况下，它能够复用抓取和开抽屉技能，而不是每次从零学习。<br />
+<strong>核心问题</strong>：如何让机器人连续学习多个任务，同时实现知识迁移、减少灾难性遗忘，并保持长期任务执行能力？</p>
+
+<h2>2. 陈述性知识与程序性知识</h2>
+
+<p>机器人操作需要两类知识：<br />
+- <strong>Declarative Knowledge（陈述性知识，Know What）</strong>：关于物体、概念、属性和空间关系的知识，例如杯子是什么、抽屉在哪里、杯子和桌子的相对位置。<br />
+- <strong>Procedural Knowledge（程序性知识，Know How）</strong>：关于如何操作的技能，例如抓取杯子、打开抽屉、移动机械臂。<br />
+例如“把杯子放进抽屉”：<br />
+- 陈述性知识：理解杯子和抽屉，知道它们的位置。<br />
+- 程序性知识：掌握抓取、移动和放置动作。<br />
+<strong>Knowledge Transfer（知识迁移）</strong>：将旧任务中学到的知识复用到新任务。<br />
+为什么可以这样分类？因为完成机器人任务既需要理解世界，也需要掌握操作技能。这是一种概念性分类，不意味着神经网络中存在两个完全独立的知识模块。</p>
+
+<h2>3. LIBERO 为什么让任务共享知识？</h2>
+
+<p>LIBERO 使用程序化生成方法，让不同任务共享部分视觉概念和操作技能，以便测试知识迁移。<br />
+例如：<br />
+- 任务 A：抓取红色杯子。<br />
+- 任务 B：把红色杯子放进抽屉。<br />
+两者共享对红色杯子的视觉理解，属于陈述性知识迁移。<br />
+再例如：<br />
+- 任务 A：抓取杯子。<br />
+- 任务 B：抓取盘子。<br />
+两者可以共享部分抓取技能，属于程序性知识迁移。<br />
+<strong>为什么需要共享？</strong> 如果所有任务完全不同，就很难判断机器人是否利用了旧任务知识。通过控制任务之间哪些因素相同、哪些发生变化，LIBERO 可以更有针对性地评估迁移能力。</p>
+
+<h2>4. LIBERO 的四个 Benchmark Suites</h2>
+
+<p><img src="/images/obsidian/7c3ad53f3332.png" alt="LIBERO_论文图1_总览.png" width="680" /><br />
+图 1 LIBERO Overview：上半部分展示 LIBERO-Spatial、LIBERO-Object、LIBERO-Goal 和 LIBERO-100 四类任务；下半部分展示终身学习研究的五个方向。<br />
+- <strong>LIBERO-Spatial（10 个任务）</strong>：改变空间关系，保持相关物体一致，测试空间关系知识的迁移。例如同一组物体出现在不同相对位置。<br />
+- <strong>LIBERO-Object（10 个任务）</strong>：改变需要操作的物体，保持空间布局相似，测试物体相关知识的迁移。例如在相似场景下操作不同物体。<br />
+- <strong>LIBERO-Goal（10 个任务）</strong>：保持物体与布局相同，改变操作目标，测试程序性知识迁移。例如对同一组物体执行不同操作任务。<br />
+- <strong>LIBERO-100（100 个任务）</strong>：包含多样化的物体、布局、背景和任务目标，测试陈述性与程序性知识的综合迁移。<br />
+<strong>核心区别</strong>：Spatial 主要研究空间关系变化，Object 研究物体变化，Goal 研究目标与操作变化，LIBERO-100 研究更加综合的长期学习能力。</p>
+
+<h2>5. LIBERO 的五个研究问题</h2>
+
+<h3>5.1 T1：知识迁移与分布偏移</h3>
+
+<p>研究如何迁移陈述性知识、程序性知识，以及两者的混合。<br />
+<strong>Distribution Shift（分布偏移）</strong>：新任务的数据分布与旧任务不同，例如物体位置、种类或操作目标发生变化。<br />
+希望模型能够利用旧任务知识适应新任务，而不是每次重新学习。</p>
+
+<h3>5.2 T2：Neural Architecture Design（神经架构设计）</h3>
+
+<p>研究应该使用什么模型结构来处理多模态观察，并让不同任务共享或隔离相关知识。<br />
+例如：<br />
+- 共享 Transformer：所有任务使用同一个网络。<br />
+- 模块化网络：共享视觉模块，不同任务使用不同动作模块。<br />
+<strong>T2 关注模型怎么搭建，以及哪些模块应该共享。</strong></p>
+
+<h3>5.3 T3：Lifelong Learning Algorithm Design（终身学习算法设计）</h3>
+
+<p>在给定网络架构的情况下，研究如何训练模型，使其学习新任务时减少对旧任务的遗忘。<br />
+常见方法：<br />
+- <strong>Sequential Fine-tuning</strong>：直接使用新任务数据继续训练，容易造成遗忘。<br />
+- <strong>EWC</strong>：限制对旧任务重要的参数发生大幅变化。<br />
+- <strong>Experience Replay</strong>：保存少量旧任务数据，与新任务数据共同训练。<br />
+<strong>T3 关注怎么更新参数，而不是改变网络结构。</strong><br />
+<strong>T2 与 T3 的区别</strong>：Architecture 决定模型长什么样，Algorithm 决定模型怎么训练。两者可以结合。</p>
+
+<h3>5.4 T4：Task Ordering（任务顺序）</h3>
+
+<p>研究学习任务的顺序是否影响最终性能。<br />
+例如先学习抓杯子再学习开抽屉，与先学习开抽屉再学习抓杯子，最终效果可能不同。<br />
+理想的终身学习算法应该对任务顺序具有一定鲁棒性。</p>
+
+<h3>5.5 T5：Pretraining Effects（预训练影响）</h3>
+
+<p>研究预训练能否提高终身学习能力，包括加速新任务学习、改善知识迁移、减少灾难性遗忘。<br />
+<strong>核心问题</strong>：有预训练基础的机器人策略，是否比从零开始训练更适合连续学习？</p>
+
+<h2>6. 单任务机器人学习的 MDP 建模</h2>
+
+<p>LIBERO 将机器人学习问题表示为有限时域 MDP（Markov Decision Process）：<br />
+$$
+\mathcal M=(S,A,T,H,\mu_0,R)
+$$<br />
+- $S$：State Space，状态空间，例如机械臂位置、物体位置。<br />
+- $A$：Action Space，动作空间，例如机械臂位移、夹爪开合。<br />
+- $T$：Transition Function，执行动作后环境状态如何变化。<br />
+- $H$：Horizon，任务允许的最大时间步数。<br />
+- $\mu_0$：Initial State Distribution，初始状态分布。<br />
+- $R$：Reward Function，奖励函数。</p>
+
+<h3>6.1 稀疏奖励与目标谓词</h3>
+
+<p>LIBERO 假设稀疏奖励，使用目标谓词代替普通奖励函数：<br />
+$$
+g:S\rightarrow\{0,1\}
+$$<br />
+- $g(s)=1$：当前状态满足任务目标。<br />
+- $g(s)=0$：当前状态不满足目标。<br />
+例如任务为“把碗放进抽屉”，只有目标条件满足时才获得成功信号。<br />
+<strong>Predicate（谓词）</strong>：判断某个条件是否成立的函数。</p>
+
+<h3>6.2 单任务优化目标</h3>
+
+<p>$$
+J(\pi)=\mathbb E_{s_t,a_t\sim\pi,\mu_0}\left[\sum_{t=1}^{H}g(s_t)\right]
+$$<br />
+$$
+\pi^*=\arg\max_\pi J(\pi)
+$$<br />
+从内到外理解：<br />
+- $g(s_t)$：第 $t$ 步的目标满足信号。<br />
+- $\sum_{t=1}^{H}$：整个任务中的累计奖励。<br />
+- $\mathbb E$：不同初始状态和执行轨迹上的平均累计奖励。<br />
+- $J(\pi)$：评价当前策略的表现。<br />
+- $\arg\max_\pi$：寻找让期望累计奖励最大的策略。<br />
+<strong>为什么使用期望？</strong> 因为机器人每次执行任务时初始状态和执行结果可能不同，目标是让策略在各种情况下平均表现良好，而不是某一次碰巧成功。<br />
+注意：期望累计奖励不一定严格等于任务成功率。如果任务成功后立即终止或只计一次成功奖励，两者才更直接对应。</p>
+
+<h2>7. 终身机器人学习（Lifelong Robot Learning）</h2>
+
+<p>机器人依次学习 $K$ 个任务：<br />
+$$
+T^1\rightarrow T^2\rightarrow\cdots\rightarrow T^K
+$$<br />
+每个任务定义为：<br />
+$$
+T^k=(\mu_0^k,g^k)
+$$<br />
+- $\mu_0^k$：第 $k$ 个任务的初始状态分布。<br />
+- $g^k$：第 $k$ 个任务的成功判断函数。<br />
+- $\pi(a\mid s;T^k)$：根据当前状态和任务生成动作的策略。<br />
+所有任务共享状态空间、动作空间、环境动力学和时间上限，但初始条件与目标可以不同。</p>
+
+<h3>7.1 终身学习优化目标</h3>
+
+<p>$$
+J_{\mathrm{LRL}}(\pi)=\frac{1}{k}\sum_{p=1}^{k}\mathbb E\left[\sum_{t=1}^{H}g^p(s_t^p)\right]
+$$<br />
+$$
+\pi^*=\arg\max_\pi J_{\mathrm{LRL}}(\pi)
+$$<br />
+- 内层 $\sum_t$：计算任务 $p$ 的累计奖励。<br />
+- $\mathbb E$：计算任务 $p$ 在不同执行情况下的期望回报。<br />
+- 外层 $\sum_{p=1}^{k}$：汇总目前学过的所有任务。<br />
+- $\frac1k$：计算所有已学任务的平均表现。<br />
+- $\arg\max_\pi$：寻找整体表现最好的策略。<br />
+<strong>与单任务学习的区别</strong>：单任务学习只关注当前任务，终身学习需要同时维持所有已学任务的能力。</p>
+
+<h3>7.2 Catastrophic Forgetting（灾难性遗忘）</h3>
+
+<p>例如机器人学会任务 A、B 后继续学习 C，任务 C 的成功率提高，但 A、B 的成功率大幅下降。<br />
+原因是新任务训练更新了原本对旧任务重要的参数，导致旧技能退化。<br />
+<strong>终身学习的核心挑战</strong>：在不断学习新任务时，尽量避免对旧知识和旧技能的遗忘。</p>
+
+<h2>8. 为什么不能使用所有旧任务数据？</h2>
+
+<p>LIBERO 使用连续任务学习的设定：学习第 $k$ 个任务时，不能完整访问之前 $k-1$ 个任务的数据。<br />
+例如：<br />
+- 任务 A：使用 $D^1$ 训练。<br />
+- 任务 B：使用 $D^2$ 训练，旧数据 $D^1$ 不再完整可用。<br />
+- 任务 C：使用 $D^3$ 训练，之前的数据同样受限。<br />
+<strong>原因</strong>：<br />
+- 模拟长期部署时无法无限保存历史数据的情况。<br />
+- 研究模型在旧数据不可用时是否仍能保留已有知识。<br />
+- 避免直接把所有历史数据混合训练，使问题退化为普通多任务学习。<br />
+注意：终身学习并不意味着绝对不能保存旧数据。有些方法允许保留少量样本进行 Replay，但不能假设所有旧任务数据都始终完整可用。</p>
+
+<h2>9. 终身模仿学习（Lifelong Imitation Learning）</h2>
+
+<p>由于稀疏奖励使机器人 RL 的探索成本较高，LIBERO 使用更实际的模仿学习设定：每个新任务提供一个小规模专家示范数据集。<br />
+$$
+D^k=\{\tau_i^k\}_{i=1}^{N}
+$$<br />
+- $D^k$：第 $k$ 个任务的示范数据。<br />
+- $\tau_i^k$：第 $i$ 条专家轨迹。<br />
+- $N$：示范数量。<br />
+每条轨迹：<br />
+$$
+\tau_i^k=(o_0,a_0,o_1,a_1,\ldots,o_{l^k})
+$$<br />
+其中 $o_t$ 是机器人观察，包括图像、关节和夹爪状态；$a_t$ 是专家动作。</p>
+
+<h3>9.1 部分可观测性</h3>
+
+<p><strong>Partial Observability（部分可观测）</strong>：机器人无法直接获得完整环境状态，只能通过摄像头和传感器看到部分信息。<br />
+因此使用历史观察作为策略输入：<br />
+$$
+s_t=o_{\leq t}=(o_0,o_1,\ldots,o_t)
+$$<br />
+例如机器人现在看不到杯子，但可以利用之前观察到的杯子位置来决定动作。<br />
+这里的 $s_t$ 是观察历史构成的策略输入，不一定等同于物理环境的完整真实状态。</p>
+
+<h3>9.2 Behavior Cloning（行为克隆）训练目标</h3>
+
+<p>$$
+J_{\mathrm{BC}}(\pi)=\frac{1}{k}\sum_{p=1}^{k}\mathbb E_{D^p}\left[\sum_{t=0}^{l^p}\mathcal L\left(\pi(o_{\leq t};T^p),a_t^p\right)\right]
+$$<br />
+$$
+\pi^*=\arg\min_\pi J_{\mathrm{BC}}(\pi)
+$$<br />
+- $\pi(o_{\leq t};T^p)$：机器人根据历史观察和任务信息预测动作。<br />
+- $a_t^p$：专家动作。<br />
+- $\mathcal L$：预测动作与专家动作的差异。<br />
+- $\sum_t$：计算一条轨迹的累计动作预测损失。<br />
+- $\mathbb E_{D^p}$：计算任务 $p$ 中示范轨迹的平均损失。<br />
+- $\frac1k\sum_p$：计算已学任务的平均损失。<br />
+- $\arg\min_\pi$：寻找预测动作误差最小的策略。<br />
+论文使用高斯混合策略模型，训练时可采用负对数似然（Negative Log-Likelihood）作为监督损失。<br />
+<strong>为什么仍然困难？</strong> 因为旧任务数据不能完整访问，即使新任务的 BC Loss 降低，也可能遗忘旧任务。<br />
+<strong>RL 与 BC 的区别</strong>：RL 根据环境奖励优化任务表现，BC 直接模仿专家示范动作。</p>
+
+<h2>10. LIBERO 的程序化任务生成</h2>
+
+<p><img src="/images/obsidian/78aa05765daf.png" alt="LIBERO_论文图2_程序化生成流程.png" width="680" /><br />
+图 2 Procedural Generation Pipeline：从 Ego4D 人类活动数据中提取动作模板，生成语言任务指令，再根据任务描述生成 PDDL 文件，定义物体、初始位置和任务目标，最后构建机器人仿真场景。<br />
+<strong>Procedural Generation（程序化生成）</strong>：使用规则和程序自动组合场景、物体及任务目标，而不是人工逐个设计任务。<br />
+整体流程：<br />
+<strong>Ego4D Human Activity Dataset → Action Templates → Language Instructions → PDDL → Simulated Robot Tasks</strong><br />
+例如提取两个动作：<br />
+- Open：打开。<br />
+- Put in：放进去。<br />
+组合成任务：“打开柜子的顶层抽屉，并把碗放进去。”</p>
+
+<h2>11. PDDL：Planning Domain Definition Language</h2>
+
+<p><strong>PDDL</strong> 是一种描述规划任务的结构化语言，用于定义环境中的物体、初始状态和任务目标。<br />
+LIBERO 的任务文件主要包含以下部分：</p>
+
+<h3>11.1 Regions：区域和空间布局</h3>
+
+<p>定义物体可以出现在哪些区域，以及物体初始朝向。<br />
+例如：<br />
+<code>(:ranges ((-0.025 -0.025 0.025 0.025)))</code><br />
+表示物体可以在一个边长为 5cm 的区域内放置。<br />
+<code>(:yaw_rotation ((0.0 0.0)))</code><br />
+表示物体绕竖直轴的初始旋转范围。<br />
+这些区域通常相对于指定的桌面或物体坐标系定义。</p>
+
+<h3>11.2 Fixtures 与 Objects</h3>
+
+<ul>
+<li><strong>Fixtures</strong>：环境中的固定装置，例如桌子和柜子。</li>
+<li><strong>Objects</strong>：可移动物体，例如碗和盘子。</li>
+<li><strong>Objects of Interest</strong>：当前任务相关的重点物体。<br />
+例如碗是任务目标物体，而盘子虽然出现在场景中，但可能只是干扰物。<br />
+<h3>11.3 Initial Configuration（初始状态）</h3></li>
+</ul>
+
+<p>使用 <code>:init</code> 定义任务开始时物体的位置关系。<br />
+例如：<br />
+<code>(On bowl kitchen_table_bowl_init_region)</code><br />
+表示碗初始位于桌面的指定区域。<br />
+对于未明确给出的状态，其具体默认值仍取决于规划语义和仿真环境初始化逻辑。</p>
+
+<h3>11.4 Goal States（目标状态）</h3>
+
+<p>使用 <code>:goal</code> 定义任务成功条件。<br />
+例如：<br />
+<code>(And (Open cabinet_top_region) (In bowl cabinet_top_region))</code><br />
+表示必须同时满足：<br />
+- 柜子顶层抽屉已经打开。<br />
+- 碗位于顶层抽屉内部。<br />
+<strong>And</strong> 表示所有条件必须同时满足，任务才算成功。<br />
+<strong>最重要的一点</strong>：PDDL 定义“任务要达到什么状态”，但不会直接提供机械臂的完整低层控制动作。</p>
+
+<h3>11.5 完整示例（附录 C.2，逐行注释）</h3>
+
+<p>示例任务：<em>Open the top drawer of the cabinet and put the bowl in it</em>。为便于阅读，括号合并成单行，π 写成 3.1416，精确数值以原文为准。</p>
+
+<pre><code>(define (problem LIBERO_Kitchen_Tabletop_Manipulation)
+  ; 仿真框架：robosuite（底层 MuJoCo）
+  (:domain robosuite)
+  ; 给机器人的语言指令
+  (:language open the top drawer of the cabinet
+             and put the bowl in it)
+
+  ; ===== 1. 区域：东西放在哪、朝哪 =====
+  ; ranges = (x最小 y最小 x最大 y最大)，单位米，相对桌子中心
+  ; yaw = 绕竖直轴的朝向，单位弧度
+  (:regions
+    ; 柜子初始位置：2cm 方块，几乎固定；朝向 π（转 180°）
+    (wooden_cabinet_init_region
+      (:target kitchen_table)
+      (:ranges ((-0.01 -0.31 0.01 -0.29)))
+      (:yaw_rotation ((3.1416 3.1416))))
+    ; 碗初始位置：桌子中心 5cm 方块内随机
+    (akita_black_bowl_init_region
+      (:target kitchen_table)
+      (:ranges ((-0.025 -0.025 0.025 0.025)))
+      (:yaw_rotation ((0.0 0.0))))
+    ; 盘子初始位置：y≈0.25m 处 5cm 方块内随机
+    (plate_init_region
+      (:target kitchen_table)
+      (:ranges ((-0.025 0.225 0.025 0.275)))
+      (:yaw_rotation ((0.0 0.0))))
+    ; 柜子顶面（可以往上放东西）
+    (top_side      (:target wooden_cabinet_1))
+    ; 最上层抽屉内部 ← 本任务的目标位置
+    (top_region    (:target wooden_cabinet_1))
+    ; 中层、下层抽屉内部（本任务用不到）
+    (middle_region (:target wooden_cabinet_1))
+    (bottom_region (:target wooden_cabinet_1)))
+
+  ; ===== 2. 场景里有什么 =====
+  ; 固定装置：不会被拿走（格式：实例名 - 类型）
+  (:fixtures
+    kitchen_table    - kitchen_table
+    wooden_cabinet_1 - wooden_cabinet)
+  ; 可移动物体：机器人能抓起来
+  (:objects
+    akita_black_bowl_1 - akita_black_bowl
+    plate_1            - plate)
+  ; 任务相关物体（盘子不在这里 → 它是干扰物）
+  (:obj_of_interest
+    wooden_cabinet_1
+    akita_black_bowl_1)
+
+  ; ===== 3. 初始状态：开局什么样 =====
+  ; 三样东西都在桌上；没写 Open → 抽屉默认关着
+  (:init
+    (On akita_black_bowl_1
+        kitchen_table_akita_black_bowl_init_region)
+    (On plate_1 kitchen_table_plate_init_region)
+    (On wooden_cabinet_1
+        kitchen_table_wooden_cabinet_init_region))
+
+  ; ===== 4. 目标：什么时候算成功 =====
+  ; And = 两个条件同时满足
+  ; 条件1：最上层抽屉开着；条件2：碗在最上层抽屉里
+  (:goal
+    (And (Open wooden_cabinet_1_top_region)
+         (In akita_black_bowl_1
+             wooden_cabinet_1_top_region))))
+</code></pre>
+
+<h2>12. PDDL 与机器人策略的关系</h2>
+
+<p>假设任务是：“打开抽屉，把碗放进去。”<br />
+PDDL 负责：<br />
+- 定义柜子、碗和桌子等对象。<br />
+- 定义它们初始的位置关系。<br />
+- 定义抽屉打开、碗进入抽屉的目标状态。<br />
+机器人策略负责：<br />
+- 根据摄像头和机器人状态生成动作。<br />
+- 控制机械臂接近抽屉。<br />
+- 抓取把手并打开抽屉。<br />
+- 抓取碗并放进抽屉。<br />
+LIBERO 根据任务定义创建仿真环境，并检查机器人是否达到目标状态。<br />
+<strong>核心区别：PDDL 负责定义任务和成功条件，策略网络负责学习如何执行动作。</strong></p>
+
+<h2>13. LIBERO 与 ACT、Diffusion Policy、RT-2 的区别</h2>
+
+<ul>
+<li><strong>LIBERO</strong>：机器人终身学习 Benchmark，提供任务环境、专家示范和评估方式。</li>
+<li><strong>ACT</strong>：机器人动作策略，使用 Transformer + CVAE 预测未来动作块。</li>
+<li><strong>Diffusion Policy</strong>：机器人动作策略，通过扩散去噪生成动作序列。</li>
+<li><strong>RT-2</strong>：Vision-Language-Action 模型，将视觉语言知识迁移到机器人动作生成。<br />
+它们不是完全同一层级的研究：<br />
+<strong>LIBERO 主要回答“如何测试机器人能否持续学习并迁移知识”，而 ACT、Diffusion Policy、RT-2 主要研究“机器人使用什么策略生成动作”。</strong><br />
+因此，LIBERO 可以作为研究不同机器人策略及终身学习方法的评估平台。<br />
+<h2>14. 总结</h2></li>
+</ul>
+
+<p>LIBERO 的核心贡献不是提出一种新的机器人动作生成算法，而是建立可程序化扩展的终身机器人学习 Benchmark。<br />
+主要特点：<br />
+- <strong>四个任务套件</strong>：Spatial、Object、Goal、LIBERO-100，分别测试不同类型的知识迁移。<br />
+- <strong>两类知识</strong>：陈述性知识（物体、概念、空间关系）与程序性知识（操作技能）。<br />
+- <strong>终身学习设定</strong>：任务依次出现，完整旧任务数据不能一直访问。<br />
+- <strong>终身模仿学习</strong>：使用专家示范，通过 Behavior Cloning 学习操作策略。<br />
+- <strong>程序化生成</strong>：使用 Ego4D 动作模板和 PDDL 自动构建不同任务。<br />
+- <strong>五个研究方向</strong>：知识迁移、算法设计、网络架构、任务顺序和预训练影响。<br />
+<strong>一句话：LIBERO 通过构建具有可控知识共享关系的机器人任务序列，系统研究机器人如何持续学习新操作任务、复用旧知识，并缓解灾难性遗忘。</strong></p>

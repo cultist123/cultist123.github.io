@@ -1,0 +1,240 @@
+<p>论文：https://arxiv.org/abs/2601.16486</p>
+
+<h2>1. 研究问题：时间感知的 Test-Time Scaling</h2>
+
+<h3>1.1 Test-Time Scaling（测试时扩展）</h3>
+
+<p><strong>Test-Time Scaling（TTS）</strong>：模型参数保持不变，在推理阶段投入更多计算资源，以提升任务表现。<br />
+常见方法：<br />
+- 增加推理 Token，进行更深入的思考。<br />
+- 生成多个候选答案，再进行选择或验证。<br />
+- 使用搜索算法探索不同推理路径。<br />
+与 Training-Time Scaling 不同，TTS 不需要更新模型参数。</p>
+
+<h3>1.2 Agent 中的时间成本</h3>
+
+<p>传统 TTS 主要关注模型推理计算量，但 Agent 还需要调用外部工具。<br />
+因此总时间不仅包含推理耗时：<br />
+$$
+T_{\text{total}}
+=T_{\text{reasoning}}+T_{\text{tools}}
+$$<br />
+例如，生成少量 Token 却调用高延迟工具，可能比长时间直接推理更慢。<br />
+<strong>核心问题：Agent 如何根据时间预算，决定继续推理、调用工具，还是结束任务？</strong></p>
+
+<h2>2. 相关技术：推理能力的训练与扩展</h2>
+
+<h3>2.1 RLVR 与 GRPO</h3>
+
+<p><strong>RLVR（Reinforcement Learning with Verifiable Rewards）</strong>：利用可客观验证的结果作为奖励，通过 RL 提升 LLM 推理能力。<br />
+例如数学题：<br />
+$$
+R(y)=
+\begin{cases}
+1,&amp;\text{答案正确}\\
+0,&amp;\text{答案错误}
+\end{cases}
+$$<br />
+训练目标：<br />
+$$
+\max_\theta\mathbb E_{y\sim\pi_\theta(\cdot\mid x)}[R(y)]
+$$<br />
+<strong>GRPO（Group Relative Policy Optimization）</strong> 通过同一任务的多个 Rollout 计算组内相对优势：<br />
+$$
+A_i=\frac{R_i-\bar R}{\sigma_R+\epsilon}
+$$</p>
+
+<h3>RLHF + GRPO 与 RLVR + GRPO</h3>
+
+<table>
+<thead>
+<tr>
+  <th></th>
+  <th>RLHF + GRPO</th>
+  <th>RLVR + GRPO</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>奖励来源</td>
+  <td>人类偏好训练的奖励模型</td>
+  <td>正确答案、规则或执行测试</td>
+</tr>
+<tr>
+  <td>典型任务</td>
+  <td>对话质量、偏好对齐</td>
+  <td>数学、代码和可验证推理</td>
+</tr>
+<tr>
+  <td>优化算法</td>
+  <td>GRPO</td>
+  <td>GRPO</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>RLHF/RLVR 决定奖励来源，GRPO 决定如何根据奖励优化策略。</strong></p>
+
+<h3>2.2 Monte Carlo Tree Search（MCTS）</h3>
+
+<p>MCTS 通过搜索树探索多条可能的推理路径，而非只沿单一路径生成。<br />
+包含四个阶段：<br />
+1. <strong>Selection</strong>：选择值得探索的节点。<br />
+2. <strong>Expansion</strong>：生成新的推理分支。<br />
+3. <strong>Simulation</strong>：继续模拟或评估推理结果。<br />
+4. <strong>Backpropagation</strong>：将结果回传，更新分支价值。<br />
+MCTS 属于 Test-Time Scaling 的一种方式：通过增加测试时搜索计算量，提高找到优质答案的机会。</p>
+
+<h3>2.3 Knowledge Distillation（知识蒸馏）</h3>
+
+<p>知识蒸馏通过 Teacher Model 指导 Student Model，使学生学习教师的输出行为。<br />
+<strong>方法一：概率分布蒸馏</strong><br />
+$$
+\boxed{
+\mathcal L_{\mathrm{KD}}
+=D_{\mathrm{KL}}(p_T\|p_\theta)
+}
+$$<br />
+展开：<br />
+$$
+\mathcal L_{\mathrm{KD}}
+=\sum_y p_T(y\mid x)
+\log\frac{p_T(y\mid x)}{p_\theta(y\mid x)}
+$$<br />
+- $p_T(y\mid x)$：教师输出 $y$ 的概率。<br />
+- $p_\theta(y\mid x)$：学生输出 $y$ 的概率。<br />
+目标是让学生输出分布接近教师分布。<br />
+<strong>方法二：教师生成数据的 SFT 蒸馏</strong><br />
+$$
+\boxed{
+\mathcal L_{\mathrm{SFT}}
+=-\mathbb E_{(x,y_T)}
+\log p_\theta(y_T\mid x)
+}
+$$<br />
+其中 $y_T$ 是教师生成的答案。<br />
+对于多 Token 输出：<br />
+$$
+\mathcal L_{\mathrm{SFT}}
+=-\sum_{i=1}^{n}
+\log p_\theta(y_i\mid x,y_{&lt;i})
+$$<br />
+两者的关系：<br />
+$$
+D_{\mathrm{KL}}(p_T\|p_\theta)
+=\mathbb E_{y\sim p_T}[-\log p_\theta(y\mid x)]-H(p_T)
+$$<br />
+教师固定时，$H(p_T)$ 不依赖学生参数。<br />
+<strong>区别：KL 蒸馏学习教师的概率分布；SFT 蒸馏模仿教师实际生成的答案。</strong></p>
+
+<h2>3. Timely-RL：时间感知的 Agent 训练</h2>
+
+<h3>3.1 执行流程</h3>
+
+<p><img src="/images/obsidian/0c52d52f94dc.png" alt="Timely_图1_TimelyRL流程.png" width="680" /><br />
+Figure 1：Timely-RL Pipeline。左：模型回答中的 <code>&lt;tool_call&gt;</code> 与工具返回的 Tool Response；右：Model 与 Tool Server 循环交互，Timer 累计时间，按时完成得到 Answer，否则 timeout。<br />
+Agent System 包含：<br />
+- <strong>Model</strong>：生成推理、回答及工具调用。<br />
+- <strong>Tool Server</strong>：执行工具请求，返回环境反馈。<br />
+- <strong>Timer</strong>：累计推理和工具执行耗时。<br />
+一次交互：<br />
+$$
+\text{Model Response}
+\rightarrow\text{Tool Call}
+\rightarrow\text{Tool Response}
+\rightarrow\text{Next Decision}
+$$<br />
+工具调用包含：<br />
+- <code>tool_call</code>：指定调用哪个工具。<br />
+- <code>arguments</code>：传给工具的具体参数。<br />
+- <code>Tool Response</code>：工具执行后返回的观察或结果。<br />
+时间耗尽前完成任务得到 Answer，否则发生 Timeout。</p>
+
+<h3>3.2 时间计算</h3>
+
+<p>每轮时间反馈为：<br />
+$$
+\boxed{
+t^{(i)}
+=\alpha t_{\mathrm{gen}}^{(i)}
++t_{\mathrm{tool}}^{(i)}
+}
+$$<br />
+- $t_{\mathrm{gen}}^{(i)}$：第 $i$ 轮 LLM 推理耗时。<br />
+- $t_{\mathrm{tool}}^{(i)}$：工具执行耗时。<br />
+- $\alpha$：推理时间缩放系数，用于模拟不同推理速度。<br />
+模型不仅要考虑生成多少 Token，还要考虑工具调用实际消耗多少时间。</p>
+
+<h2>4. 时间感知奖励设计</h2>
+
+<h3>4.1 Timely-RL Reward：公式 (9)</h3>
+
+<p>$$
+\boxed{
+R(t,r)=
+\begin{cases}
+0,&amp;t&gt;T_{\max}\\
+r_f,&amp;t\leq T_{\max},\ r=0\\
+r_f+r+\lambda U(t),&amp;t\leq T_{\max},\ r&gt;0
+\end{cases}
+}
+\tag{9}
+$$<br />
+- $t$：任务总耗时。<br />
+- $T_{\max}$：最大时间预算。<br />
+- $r$：任务正确率奖励。<br />
+- $r_f$：格式正确且按时完成的固定奖励。<br />
+- $\lambda$：时间奖励的权重。<br />
+- $U(t)$：时间利用率函数。<br />
+三种情况：<br />
+1. <strong>超时</strong>：奖励为 0。<br />
+2. <strong>按时完成但答案错误</strong>：获得 $r_f$。<br />
+3. <strong>按时完成且答案正确</strong>：获得 $r_f+r+\lambda U(t)$。</p>
+
+<h3>4.2 时间利用率函数：公式 (10)</h3>
+
+<p>$$
+\boxed{
+U(t)=\sin\left(
+\frac{\pi}{2}
+\min\left(\frac{t}{T_{\max}},1\right)
+\right)
+}
+\tag{10}
+$$<br />
+其中 $t/T_{\max}$ 是已使用时间的比例，$\min$ 将比例限制在 1 以内。<br />
+例如：<br />
+$$
+U(0)=0
+$$<br />
+$$
+U(0.5T_{\max})\approx0.707
+$$<br />
+$$
+U(T_{\max})=1
+$$<br />
+函数特点：<br />
+- 随时间增加而增加。<br />
+- 越接近时间上限，增长速度越慢。<br />
+- 使用正弦函数减小截止时间附近奖励变化的敏感度。<br />
+<strong>特别注意：公式 (10) 并不是直接奖励更快完成。</strong><br />
+当 $\lambda&gt;0$ 且任务同样正确、均未超时时，较长耗时反而对应较高的 $U(t)$。<br />
+因此必须区分论文希望模型具备的时间感知行为，与该公式实际提供的优化信号。</p>
+
+<h2>5. 核心总结</h2>
+
+<p>传统 Test-Time Scaling 主要通过增加推理计算量提升性能，而 Timely Machine 将工具延迟和时间预算也纳入 Agent 决策。<br />
+<strong>核心思路：</strong><br />
+$$
+\boxed{
+\text{Agent Execution}
++\text{Time Feedback}
++\text{Time-Aware Reward}
+\rightarrow\text{RL Optimization}
+}
+$$<br />
+关键点：<br />
+1. <strong>时间感知</strong>：同时计算模型推理和工具执行的耗时。<br />
+2. <strong>时间约束</strong>：超过截止时间的任务直接获得零奖励。<br />
+3. <strong>Timely-RL</strong>：通过时间相关的奖励信号，训练模型适应不同时间预算。<br />
+<strong>核心洞察：Agent 的测试时计算不仅是推理 Token，还包含工具调用成本，因此时间应当成为策略决策与强化学习优化的一部分。</strong></p>

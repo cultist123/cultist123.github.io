@@ -1,0 +1,184 @@
+<p>论文：https://arxiv.org/abs/2505.10978</p>
+
+<h2>1. 研究问题：多步 Agent 的信用分配</h2>
+
+<p>LLM Agent 通过与环境交互完成多步任务，一次完整 Rollout 表示为：<br />
+$$
+\tau=(s_1,a_1,r_1,\ldots,s_T,a_T,r_T)
+$$<br />
+- $s_t$：环境状态；$a_t$：动作；$r_t$：即时奖励。<br />
+- $\tau$：一条完整交互轨迹（Trajectory / Rollout）。<br />
+<strong>核心问题：Credit Assignment（信用分配）</strong><br />
+- Agent 的奖励通常稀疏，可能只在任务结束时获得。<br />
+- 最终任务成功或失败，不能直接说明每一步动作是否正确。<br />
+- 需要更细粒度的训练信号，区分不同动作的贡献。</p>
+
+<h2>2. 基础：Group-Based RL</h2>
+
+<h3>2.1 回合级分组</h3>
+
+<p>对同一任务 $x$，使用旧策略 $\pi_{\theta_{\mathrm{old}}}$ 采样 $N$ 条完整轨迹：<br />
+$$
+\{\tau_1,\tau_2,\ldots,\tau_N\}
+$$<br />
+每条轨迹获得总体奖励 $R(\tau_i)$。<br />
+传统 PPO 通常使用独立 Critic 估计价值函数；GRPO 则根据同组轨迹的奖励计算相对优势：<br />
+$$
+A^E(\tau_i)
+=\frac{R(\tau_i)-\mu_R}{\sigma_R+\epsilon}
+$$<br />
+其中 $\mu_R,\sigma_R$ 分别是组内奖励的均值和标准差。<br />
+<strong>优势</strong>：无需独立训练价值网络，节省显存与计算开销。<br />
+<strong>局限</strong>：同一轨迹的不同步骤共享回合级优势，难以区分具体动作的好坏。</p>
+
+<h2>3. GiGPO：Group-in-Group</h2>
+
+<p>GiGPO 在 Episode-Level Grouping 之外，利用已有轨迹构造 Step-Level Grouping。</p>
+
+<h3>3.1 Anchor State Grouping（锚点状态分组）</h3>
+
+<p>核心观察：不同 Rollout 可能在不同时间遇到相同的环境状态。<br />
+设 $\tilde{s}$ 为共享的锚点状态，则：<br />
+$$
+G^S(\tilde{s})
+=\{(a_t^{(i)},r_t^{(i)})
+\mid s_t^{(i)}=\tilde{s}\}
+\tag{4}
+$$<br />
+- $\tilde{s}$：不同轨迹中重复出现的环境状态。<br />
+- $a_t^{(i)}$：在该状态采取的动作。<br />
+- $r_t^{(i)}$：对应即时奖励。<br />
+GiGPO 使用轻量级哈希分组，收集相同状态下的动作实例。<br />
+<strong>关键创新</strong>：直接复用已有 Rollout，不需要为中间状态额外采样新轨迹。<br />
+<img src="/images/obsidian/8e18676d93f8.png" alt="GiGPO_图2_整体架构.png" width="680" /><br />
+Figure 2：同一任务生成多条 Rollout；上方计算 Episode-Level Advantage，下方把相同颜色的环境状态组成 Anchor State Groups，计算 Step-Level Advantage。</p>
+
+<h3>3.2 从即时奖励到折扣回报</h3>
+
+<p>即时奖励 $r_t$ 只能反映当前反馈，而动作可能通过后续步骤影响任务结果。<br />
+因此使用 Discounted Return（折扣回报）：<br />
+$$
+\boxed{
+R_t^{(i)}
+=\sum_{k=t}^{T}\gamma^{k-t}r_k^{(i)}
+}
+\tag{5}
+$$<br />
+- $R_t^{(i)}$：从当前步骤开始的未来累计折扣奖励。<br />
+- $\gamma\in(0,1]$：折扣因子，控制未来奖励的重要性。<br />
+例如：<br />
+$$
+r=[0,0,1],\quad\gamma=0.9
+$$<br />
+则：<br />
+$$
+R_1=0.81,\quad R_2=0.9,\quad R_3=1
+$$<br />
+即使前两步即时奖励为 0，也能利用后续成功奖励提供训练信号。<br />
+步骤组因此变为：<br />
+$$
+G^S(\tilde{s})
+=\{(a_t^{(i)},R_t^{(i)})
+\mid s_t^{(i)}=\tilde{s}\}
+\tag{6}
+$$</p>
+
+<h3>3.3 Step-Level Relative Advantage</h3>
+
+<p>对相同锚点状态下的动作，比较其未来折扣回报：<br />
+$$
+\boxed{
+A^S(a_t^{(i)})
+=\frac{R_t^{(i)}-\operatorname{mean}(\mathcal R_{\tilde{s}})}
+{F_{\mathrm{norm}}(\mathcal R_{\tilde{s}})}
+}
+\tag{7}
+$$<br />
+其中：<br />
+- $\mathcal R_{\tilde{s}}$：锚点状态 $\tilde{s}$ 对应组内所有折扣回报的集合。<br />
+- $\operatorname{mean}$：组内平均回报。<br />
+- $F_{\mathrm{norm}}$：归一化函数，如标准差。<br />
+<strong>核心：在相同环境状态下，根据不同动作的长期回报估计相对优势。</strong><br />
+<img src="/images/obsidian/984c268f2a7d.png" alt="GiGPO_图3_WebShop步骤级分组.png" width="600" /><br />
+Figure 3：两条轨迹多次经过同一个搜索结果页面（红框），但后续动作不同：<br />
+- $\tau_1$：先点第 2 件商品，返回后再点第 1 件商品，最终成功。<br />
+- $\tau_2$：选择下一页，最终失败。<br />
+GiGPO 通过步骤级回报得到动作偏好：<br />
+$$
+\text{第 1 件商品}&gt;\text{第 2 件商品}&gt;\text{下一页}
+$$<br />
+说明即使动作属于同一条成功轨迹，也可以具有不同的长期效用。<br />
+这种方法既能利用稀疏终局奖励，也能利用稠密的逐步奖励。</p>
+
+<h2>4. Group-in-Group Policy Optimization</h2>
+
+<h3>4.1 两级优势融合</h3>
+
+<p>$$
+\boxed{
+A(a_t^{(i)})
+=A^E(\tau_i)+\omega A^S(a_t^{(i)})
+}
+\tag{8}
+$$<br />
+- $A^E$：Episode-Level Advantage，评价整条轨迹。<br />
+- $A^S$：Step-Level Advantage，评价相同状态下的具体动作。<br />
+- $\omega\geq0$：控制步骤级优势权重。<br />
+例如：<br />
+$$
+A^E=0.5,\quad A^S=-0.8,\quad\omega=1
+$$<br />
+则：<br />
+$$
+A=-0.3
+$$<br />
+即使整条轨迹表现较好，局部表现较差的动作仍可能获得负优势。</p>
+
+<h3>4.2 策略优化</h3>
+
+<p>GiGPO 沿用 PPO 风格的 Clipped Objective，将原本的优势替换为融合后的 $A$：<br />
+$$
+\mathcal J_{\mathrm{GiGPO}}
+=\mathbb E\left[
+\min\left(
+\rho_\theta A,\,
+\operatorname{clip}(\rho_\theta,1-\epsilon,1+\epsilon)A
+\right)
+\right]
+-\beta D_{\mathrm{KL}}(\pi_\theta\|\pi_{\mathrm{ref}})
+$$<br />
+其中：<br />
+$$
+\rho_\theta
+=\frac{\pi_\theta(a_t\mid s_t,x)}
+{\pi_{\theta_{\mathrm{old}}}(a_t\mid s_t,x)}
+$$<br />
+- $\rho_\theta$：新旧策略采取同一动作的概率比。<br />
+- $\operatorname{clip}$：限制策略更新幅度。<br />
+- $\beta D_{\mathrm{KL}}$：限制策略偏离参考模型。<br />
+<strong>GiGPO 的主要改进在 Advantage Estimation，而不是重新设计 PPO 优化器。</strong></p>
+
+<h2>5. 核心贡献</h2>
+
+<ol>
+<li><strong>Hierarchical Credit Assignment</strong>：结合回合级与步骤级优势，提供更细粒度的训练信号。</li>
+<li><strong>Anchor State Grouping</strong>：利用不同轨迹中的共享环境状态比较动作的长期效用。</li>
+<li><strong>Efficient Group-Based RL</strong>：无需独立 Critic，也无需针对中间状态额外生成 Rollout。<br />
+<strong>核心总结</strong><br />
+传统 GRPO：<br />
+$$
+\text{同一任务的 Rollouts}
+\rightarrow \text{Episode Advantage}
+$$<br />
+GiGPO：<br />
+$$
+\text{Rollouts}
+\rightarrow
+\begin{cases}
+\text{Episode Group}\\
+\text{Anchor State Groups}
+\end{cases}
+\rightarrow A^E+\omega A^S
+$$<br />
+GiGPO 通过在原有 Rollout 组内进一步构建共享状态的步骤组，实现更细粒度的信用分配，在保持分组 RL 训练效率的同时改善多步 Agent 的策略优化。</li>
+</ol>

@@ -1,0 +1,198 @@
+[
+  {
+    "slug": "dpo",
+    "title": "DPO：偏好对齐的数学推导",
+    "category": "alignment",
+    "source": "day 8.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "qwen3",
+    "title": "Qwen3：模型与训练笔记",
+    "category": "pretraining",
+    "source": "day 8.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "search-r1",
+    "title": "Search-R1：用强化学习学习搜索",
+    "category": "agentic",
+    "source": "day 11.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "memento",
+    "title": "MeMento：偏好条件化的多模态记忆",
+    "category": "embodied",
+    "source": "day 11.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "ragen",
+    "title": "RAGEN：多轮 Agent 强化学习与训练稳定性",
+    "category": "agentic",
+    "source": "day 11.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "act-aloha",
+    "title": "ACT / ALOHA：动作分块与双臂模仿学习",
+    "category": "embodied",
+    "source": "day 12.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "clip",
+    "title": "CLIP：图文对比预训练与零样本迁移",
+    "category": "deep-learning",
+    "source": "day 12.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "diffusion-policy",
+    "title": "Diffusion Policy：用扩散模型生成动作",
+    "category": "embodied",
+    "source": "day 12.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "libero",
+    "title": "LIBERO：终身机器人学习与知识迁移",
+    "category": "embodied",
+    "source": "day 13.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "libero-dynamic",
+    "title": "LIBERO-Dynamic：动态环境、推理延迟与执行协议",
+    "category": "embodied",
+    "source": "day 14.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "pcbworld",
+    "title": "PCBWorld：原生 PCB 设计自动化环境",
+    "category": "eda",
+    "source": "day 16.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "fanoutnet",
+    "title": "FanoutNet：强化学习与 PCB 扇出自动化",
+    "category": "eda",
+    "source": "day 16.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "pcb-route-agent",
+    "title": "PCBRouteAgent：大模型驱动的分层布线",
+    "category": "eda",
+    "source": "day 16.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "cadet",
+    "title": "CADET：可执行示范与 PCB 布线数据构造",
+    "category": "eda",
+    "source": "day 20.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "seq2seq-attention",
+    "title": "Seq2Seq：编码器、解码器与注意力",
+    "category": "deep-learning",
+    "source": "day 21.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "retool",
+    "title": "ReTool：学习策略性工具调用",
+    "category": "agentic",
+    "source": "day 21.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "rt2",
+    "title": "RT-2：从视觉语言模型到机器人动作",
+    "category": "embodied",
+    "source": "day 22.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "openvla",
+    "title": "OpenVLA：开源视觉语言动作模型",
+    "category": "embodied",
+    "source": "day 22.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "flow-matching",
+    "title": "Flow Matching：从噪声到数据的速度场",
+    "category": "deep-learning",
+    "source": "day 23.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "agentic-rl-basics",
+    "title": "Agentic RL：任务建模与传统 RL 的区别",
+    "category": "agentic",
+    "source": "day 24.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "gigpo",
+    "title": "GiGPO：多步 Agent 的分组与信用分配",
+    "category": "agentic",
+    "source": "day 24.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "multi-turn-agentic-rl",
+    "title": "多轮 Agentic RL：奖励、信用分配与实践",
+    "category": "agentic",
+    "source": "day 24.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "agent-lightning",
+    "title": "Agent Lightning：Agent 执行与 RL 训练解耦",
+    "category": "agentic",
+    "source": "day 24.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "llm-agent-timeline",
+    "title": "从 Transformer 到 Agentic RL：大模型发展脉络",
+    "category": "overview",
+    "source": "day 25.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "real-time-reasoning",
+    "title": "实时推理 Agent：Token Clock 与双线程推理",
+    "category": "agentic",
+    "source": "day 25.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "timely-machine",
+    "title": "Timely Machine：时间感知的测试时扩展",
+    "category": "agentic",
+    "source": "day 25.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "budget-aware-agents",
+    "title": "预算感知 Agent：多轮决策与资源约束奖励",
+    "category": "agentic",
+    "source": "day 25.md",
+    "date": "2026-11-24"
+  },
+  {
+    "slug": "thinkless",
+    "title": "Thinkless：学习何时思考与 DeGRPO",
+    "category": "agentic",
+    "source": "day 25.md",
+    "date": "2026-11-24"
+  }
+]

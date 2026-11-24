@@ -1,0 +1,436 @@
+<p>论文：arXiv:2610.24579</p>
+
+<h2>1. 研究背景与核心问题</h2>
+
+<p>传统机器人操作 Benchmark（如 LIBERO）主要使用静态场景，机器人可以在相对稳定的环境中完成抓取、移动和放置任务。但真实环境中的物体可能持续运动，而且 VLA 模型生成动作需要推理时间。模型思考期间，目标可能已经离开原来的位置。<br />
+<strong>核心问题</strong>：如何公平、可重复地评估机器人策略在物体持续运动和模型推理延迟共同影响下的动态操作能力？<br />
+LIBERO-Dynamic 基于 LIBERO、robosuite 和 MuJoCo，增加受控物体运动、延迟感知的动作执行协议，以及动态示范数据生成方法。</p>
+
+<p><img src="/images/obsidian/950695fc59c1.png" alt="LIBERO-Dynamic_图1_总览.png" width="680" /></p>
+
+<blockquote>
+  <p>论文图 1：(a) 真机上物体在动、模型推理有延迟，而现有仿真 Benchmark（LIBERO、LIBERO-Plus、DOMINO）没有建模推理延迟；(b) Sync 执行下，推理期间机器人原地保持（robot hold），世界时间照常推进；(c) 六个预训练模型以及动态微调后模型的雷达图对比。</p>
+</blockquote>
+
+<h2>2. 论文的三个主要贡献</h2>
+
+<ul>
+<li><strong>动态 Benchmark</strong>：引入物体运动模式、速度、轨迹相位和模型特定的推理延迟，构建标准化的时空评测环境。</li>
+<li><strong>动态数据生成</strong>：通过接触摩擦驱动物体，并使用在线运动补偿将成功的静态示范转换为动态示范，得到 9,000 条经过质量筛选的轨迹。</li>
+<li><strong>模型与执行策略分析</strong>：评测六个预训练策略，比较不同执行协议和动作视野，并使用动态数据、混合数据微调不同架构，研究实时操作性能的影响因素。<br />
+<strong>核心区别</strong>：第一项解决怎么测试，第二项解决如何获得动态训练数据，第三项研究怎样执行和训练更有效。<br />
+<h2>3. LIBERO-Dynamic 整体框架</h2></li>
+</ul>
+
+<p><img src="/images/obsidian/da93a195fed9.png" alt="LIBERO-Dynamic_图2_Benchmark框架.png" width="680" /></p>
+
+<blockquote>
+  <p>论文图 2：左上是运动模式、速度和延迟三个 Benchmark Dimensions；左下是 Sync、Async、RTC、VLASH 四种执行协议；右上是动态数据生成与数据划分；右下是执行协议比较和动态微调实验。</p>
+</blockquote>
+
+<p>整体分为三个研究方向：<br />
+- <strong>Benchmark</strong>：测试模型在物体运动及推理延迟下的表现。<br />
+- <strong>Execution Strategy</strong>：模型参数不变，调整推理和动作执行的调度方式。<br />
+- <strong>Dynamic Fine-Tuning</strong>：利用动态示范更新模型参数，提高动态操作能力。</p>
+
+<h2>4. 动态环境设计</h2>
+
+<h3>4.1 运动模式与速度</h3>
+
+<p>LIBERO-Dynamic 为目标物体设计三类轨迹：<br />
+- <strong>Linear</strong>：直线运动。<br />
+- <strong>Curvilinear</strong>：曲线运动。<br />
+- <strong>Zigzag</strong>：之字形运动。<br />
+三档速度：<br />
+- 0.03 m/s。<br />
+- 0.06 m/s。<br />
+- 0.09 m/s。<br />
+此外还改变空间轨迹与运动相位，用于生成不同的动态条件。<br />
+<strong>Motion Phase（运动相位）</strong>：目标从一条运动轨迹上的哪个阶段开始运动。例如同一条周期运动轨迹，物体可以从不同位置或时刻开始。</p>
+
+<p><img src="/images/obsidian/5b58a9e26a5c.png" alt="LIBERO-Dynamic_图8_动态示范示例.png" width="680" /></p>
+
+<blockquote>
+  <p>论文图 8（附录）：四个代表性任务在三种运动模式下的动态示范。每格前 3 帧是从开始到机器人第一次接触目标的接近过程，第 4 帧是结束状态。</p>
+</blockquote>
+
+<h3>4.2 Contact-Driven Motion（接触驱动运动）</h3>
+
+<p>论文不直接修改目标物体的位姿，而是在物体下方放置一个不可见的刚性运动平台。<br />
+流程：<strong>预设平台轨迹 → 平台移动 → 接触摩擦推动物体 → 物体按照物理规律运动</strong>。<br />
+这样物体仍然参与 MuJoCo 的物理求解：<br />
+- 平台通过摩擦带动物体移动。<br />
+- 机器人可以正常与物体发生碰撞和接触。<br />
+- 物体被抓起后能够离开运动平台。<br />
+<strong>为什么不直接修改物体坐标？</strong> 直接设置位姿可能绕过正常的接触动力学，影响抓取、摩擦和碰撞的真实性。接触驱动可以在保持运动可控的同时保留物理交互。</p>
+
+<h2>5. 连续物理与推理延迟</h2>
+
+<h3>5.1 控制频率</h3>
+
+<p>机器人控制频率为：<br />
+$$
+f_c=20\ \mathrm{Hz}
+$$<br />
+表示每秒执行 20 个控制步，每步对应：<br />
+$$
+\Delta t_c=\frac{1}{20}=0.05\ \mathrm{s}
+$$</p>
+
+<h3>5.2 推理延迟量化</h3>
+
+<p>设模型测得的端到端推理延迟为 $\tau$，对应的控制步数：<br />
+$$
+D=\lceil\tau f_c\rceil
+$$<br />
+其中 $\lceil\cdot\rceil$ 表示向上取整。<br />
+仿真推进的时间：<br />
+$$
+\Delta t=\frac{D}{f_c}
+$$<br />
+例如 $\tau=0.12$ 秒：<br />
+$$
+D=\lceil0.12\times20\rceil=3
+$$<br />
+$$
+\Delta t=3/20=0.15\ \mathrm{s}
+$$<br />
+因此模型推理需要 0.12 秒，仿真按控制步量化后推进 0.15 秒，新动作才可使用。<br />
+<strong>关键设计</strong>：模型推理期间，物理世界和运动物体始终继续运行，机器人则按执行协议保持姿态或执行旧动作。</p>
+
+<h3>5.3 Wall-Clock Latency（墙钟延迟）</h3>
+
+<p>延迟定义为从提交观察到收到动作块的实际端到端时间，包括相关的预处理、模型推理和返回开销。<br />
+论文在目标 GPU 上预热并测量各模型部署配置的延迟，然后冻结中位数作为该配置的模拟延迟。<br />
+<strong>目的</strong>：使用一致的延迟量化和环境推进规则，使不同策略能够在可重复的动态条件下比较。</p>
+
+<h2>6. Action Horizon 与重新规划</h2>
+
+<p>策略每次预测未来 $H$ 个动作，但最多采纳其中 $K$ 个动作：<br />
+$$
+K\leq H
+$$<br />
+- <strong>$H$（Prediction Horizon）</strong>：模型一次预测的动作序列长度。<br />
+- <strong>$K$（Effective Horizon）</strong>：重新规划前最多使用多少个预测动作。<br />
+例如模型预测 20 个动作，但设置 $K=5$，则每次最多采用 5 步动作，之后根据执行协议获取新的动作块。<br />
+<strong>K 较小</strong>：通常重新规划更频繁，能够更快利用新观察，但也增加模型调用需求，并可能出现动作衔接问题。<br />
+<strong>K 较大</strong>：减少推理调用，但机器人可能较长时间执行基于旧观察生成的动作，难以及时响应运动目标。</p>
+
+<h2>7. 四种延迟感知执行协议</h2>
+
+<p><img src="/images/obsidian/46eb8dab16d9.png" alt="LIBERO-Dynamic_图2_执行协议.png" width="680" /></p>
+
+<blockquote>
+  <p>论文图 2 左下（Execution Protocols）：蓝色块是推理，浅绿/深绿交替表示相邻两次预测的动作。Sync 在推理时 Robot Hold；Async 边推理边执行并丢弃过期动作（Drop stale actions）；RTC 用条件化过渡（Conditioned Transition）衔接新旧动作块；VLASH 用未来状态代理（Future-State Proxy）作为推理输入。</p>
+</blockquote>
+
+<h3>7.1 Sync：Synchronous Hold（同步保持）</h3>
+
+<p>当前动作块执行完后，如果新推理尚未完成，机器人保持当前姿态等待。<br />
+<strong>特点</strong>：实现简单，但推理期间外部物体仍在运动，机器人可能错过最佳抓取时机。</p>
+
+<h3>7.2 Async：Asynchronous Queue（异步队列）</h3>
+
+<p>推理新动作时，机器人继续执行旧动作队列，推理与执行重叠进行。<br />
+新动作返回后，更新动作队列，并融合重叠部分的动作预测。<br />
+<strong>特点</strong>：减少等待时间，提高执行连续性，但可能存在旧动作与新动作不一致或队列下溢问题。</p>
+
+<h3>7.3 RTC：Real-Time Chunking</h3>
+
+<p>根据已经提交执行的动作和预期推理延迟，对后续动作进行条件化续写，使新动作块能够衔接旧动作。<br />
+<strong>特点</strong>：重点处理新旧动作块之间的连续性，避免重新规划造成突然的动作变化。</p>
+
+<h3>7.4 VLASH</h3>
+
+<p>将机器人状态沿预期推理延迟向前推演，预测新动作可用时机器人将处于什么状态，再基于未来状态生成动作。<br />
+新动作返回后直接接管，不采用重叠预测的加权融合。<br />
+<strong>特点</strong>：重点补偿由于模型推理延迟造成的机器人状态变化。</p>
+
+<h3>7.5 四种协议的区别</h3>
+
+<ul>
+<li><strong>Sync</strong>：旧动作执行完后等待新动作。</li>
+<li><strong>Async</strong>：推理与旧动作执行并行，融合重叠预测。</li>
+<li><strong>RTC</strong>：将已提交动作与预期延迟作为条件，生成能够连续衔接的动作。</li>
+<li><strong>VLASH</strong>：预测延迟后的机器人状态，并让新动作直接接管。<br />
+<strong>注意</strong>：不同协议可能使用不同输入或产生不同推理延迟，因此协议之间的性能差异不一定完全由单个执行机制导致，不能直接做单一因素的因果归因。<br />
+<h2>8. Dynamic Data Synthesis（动态数据生成）</h2></li>
+</ul>
+
+<p><img src="/images/obsidian/404b7279d2d8.png" alt="LIBERO-Dynamic_图2_动态数据生成.png" width="560" /></p>
+
+<blockquote>
+  <p>论文图 2 右上（Dynamic Data Synthesis and Dataset Split）：静态示范 →（3 运动模式 × 3 速度 × 5 轨迹 × 5 相位）→ 9,000 条动态示范；其中 1,800 条（benchmark 相位 $\varphi_{\text{eval}}$）作测试集，其余 7,200 条（4 个非 benchmark 相位）按相位均衡 1/4 采样得到 1,800 条紧凑训练集。</p>
+</blockquote>
+
+<h3>8.1 静态示范到动态示范</h3>
+
+<p>原始 LIBERO 示范中，目标物体通常保持静止。直接把这些动作应用于动态目标，可能会因为物体位移而抓空。<br />
+论文使用 <strong>Online Motion Compensation（在线运动补偿）</strong>：<br />
+1. 读取经过验证的静态示范。<br />
+2. 让目标物体通过摩擦驱动沿指定轨迹移动。<br />
+3. 计算目标相对参考轨迹的位移。<br />
+4. 根据该位移在线补偿机器人动作。<br />
+5. 在动态环境中执行并筛选成功轨迹。<br />
+例如原始示范要求机械臂抓取位置 A，但目标已经移动了 5cm，就根据目标位移修正动作，使机械臂能够追随运动目标。<br />
+<strong>目的</strong>：复用已有静态示范，降低重新收集动态专家数据的成本。</p>
+
+<h3>8.2 动态数据集</h3>
+
+<p>动态数据构造包含：<br />
+- 3 种 Motion Patterns。<br />
+- 3 档 Object Speeds。<br />
+- 5 种 Object Trajectory Variants。<br />
+- 5 种 Trajectory Phases。<br />
+经过质量筛选后，最终得到 <strong>9,000 条动态操作轨迹</strong>。<br />
+训练和评测使用不同运动相位，以减少直接重复条件，但仍共享任务、运动路径和速度，因此不能视为完全未见动态条件下的泛化测试。</p>
+
+<h2>9. Benchmark 评测协议与指标</h2>
+
+<p>机器人需要在 <strong>600 个控制步以内</strong>完成原始 LIBERO 的 BDDL 目标。<br />
+20Hz 下，600 个控制步对应 30 秒控制时间，但不一定等于包含全部等待的真实墙钟时间。</p>
+
+<h3>9.1 Success Rate（任务成功率）</h3>
+
+<p>$$
+SR=\frac{N_{\mathrm{succ}}}{N_{\mathrm{total}}}
+$$<br />
+这是论文的主指标，报告动态总体 SR 以及不同速度下的 SR。</p>
+
+<h3>9.2 Time Efficiency（时间效率）</h3>
+
+<p>$$
+E_T=\sqrt{p\bar c_T}
+$$<br />
+$$
+c_T=\min\left(1,\frac{T_{\mathrm{ref}}}{T_{\mathrm{actual}}}\right)
+$$<br />
+- $p$：任务成功率。<br />
+- $T_{\mathrm{ref}}$：参考完成步数。<br />
+- $T_{\mathrm{actual}}$：当前策略实际完成步数。<br />
+- $\bar c_T$：成功条件下的平均步数效率。<br />
+例如参考任务需要 100 步，当前策略使用 125 步，则 $c_T=0.8$。<br />
+<strong>目的</strong>：同时衡量任务成功覆盖率与成功任务的控制步数效率。同步等待时间不计入控制步数。</p>
+
+<h3>9.3 Path Efficiency（路径效率）</h3>
+
+<p>$$
+E_P=\sqrt{p\bar c_P}
+$$<br />
+$$
+c_P=\min\left(1,\frac{L_{\mathrm{ref}}}{L_{\mathrm{actual}}}\right)
+$$<br />
+- $L_{\mathrm{ref}}$：参考末端执行器路径长度。<br />
+- $L_{\mathrm{actual}}$：当前执行的路径长度。<br />
+<strong>目的</strong>：衡量任务成功率和机械臂路径效率，减少不必要的绕路。</p>
+
+<h3>9.4 Query Efficiency（查询效率）</h3>
+
+<p>$$
+E_I=\frac{1000N_{\mathrm{succ}}}{N_{\mathrm{query}}}
+$$<br />
+- $N_{\mathrm{succ}}$：成功完成的任务数。<br />
+- $N_{\mathrm{query}}$：模型推理调用次数。<br />
+表示每 1000 次策略查询能产生多少次成功任务。数值越高，说明单位推理调用的成功产出越高。</p>
+
+<h3>9.5 Latency（推理延迟）</h3>
+
+<p>表中报告冻结的端到端延迟 $\tau$，以及量化后的控制步数 $D$。延迟通常越低，模型越有机会及时响应运动目标，但实际成功率还取决于动作质量和执行协议。</p>
+
+<h3>9.6 Steady-State Underflow（稳态队列下溢）</h3>
+
+<p>在至少执行过一个预测动作后，如果旧动作队列已经为空，但新推理还没返回，就出现队列下溢。<br />
+论文按照每 1000 个执行步中的下溢步数报告该指标。<br />
+<strong>作用</strong>：诊断异步执行的动作队列是否连续。下溢越少通常表示队列供给越稳定，但不直接等于任务成功率。</p>
+
+<h2>10. 六个预训练策略的动态评测</h2>
+
+<h3>10.1 K*：最佳测量动作视野</h3>
+
+<p>论文对每个模型扫描多个有效视野：<br />
+- $K=1$。<br />
+- 原生动作长度范围内的偶数 K。<br />
+- 适用时加入原生奇数端点。<br />
+然后选出成功率最高的测量值：<br />
+$$
+K^*=\arg\max_{K\in\mathcal K}SR(K)
+$$<br />
+<strong>重要限制</strong>：$K^*$ 是在固定评测集上事后选出的最佳结果，不是通过独立验证集选择的超参数，因此不能把它视为无偏的泛化性能估计。<br />
+表 2 使用各模型的 $K^*$，所有模型均采用 Async 执行，并在相同的 1,800 个动态条件下评测。</p>
+
+<p><img src="/images/obsidian/7eeaaf169a5a.png" alt="LIBERO-Dynamic_图9_跨模型K扫描.png" width="680" /></p>
+
+<blockquote>
+  <p>论文图 9（附录）：六个模型的 (a) Sync 和 (b) Async K 扫描；(c) 每个模型在最佳 Async K 下按物体速度分的 SR。$K^*$ 就是从这类曲线上取的最高点。</p>
+</blockquote>
+
+<h3>10.2 表 2：六个模型的结果</h3>
+
+<p><img src="/images/obsidian/b22175f14fad.png" alt="LIBERO-Dynamic_表2_六模型结果.png" width="680" /></p>
+
+<blockquote>
+  <p>论文表 2 原图（arXiv:2610.24579，第 7 页）：Async 执行、各自 $K^*$、固定 1,800 局。Ret. = 动态 All SR / speed=0 结果。</p>
+</blockquote>
+
+<table>
+<thead>
+<tr>
+  <th>模型</th>
+  <th style="text-align:right;">静态 SR</th>
+  <th style="text-align:right;">动态 SR</th>
+  <th style="text-align:right;">保持率</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+  <td>π0.5 (JAX)</td>
+  <td style="text-align:right;">96.9%</td>
+  <td style="text-align:right;">57.8%</td>
+  <td style="text-align:right;">59.6%</td>
+</tr>
+<tr>
+  <td>FastWAM-Joint</td>
+  <td style="text-align:right;">98.5%</td>
+  <td style="text-align:right;">40.6%</td>
+  <td style="text-align:right;">41.2%</td>
+</tr>
+<tr>
+  <td>VLA-JEPA</td>
+  <td style="text-align:right;">97.2%</td>
+  <td style="text-align:right;">35.7%</td>
+  <td style="text-align:right;">36.7%</td>
+</tr>
+<tr>
+  <td>FastWAM</td>
+  <td style="text-align:right;">97.6%</td>
+  <td style="text-align:right;">32.1%</td>
+  <td style="text-align:right;">32.9%</td>
+</tr>
+<tr>
+  <td>π0 (JAX)</td>
+  <td style="text-align:right;">94.2%</td>
+  <td style="text-align:right;">31.5%</td>
+  <td style="text-align:right;">33.4%</td>
+</tr>
+<tr>
+  <td>OpenVLA-OFT</td>
+  <td style="text-align:right;">97.1%</td>
+  <td style="text-align:right;">27.3%</td>
+  <td style="text-align:right;">28.1%</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>静态表现</strong>：六个模型静态成功率均在 94% 以上，差异较小。<br />
+<strong>动态表现</strong>：总体成功率下降到 27.3%–57.8%，模型之间的差异明显扩大。</p>
+
+<h3>10.3 Retention Rate（性能保持率）</h3>
+
+<p>$$
+\mathrm{Retention}=\frac{SR_{\mathrm{dynamic}}}{SR_{\mathrm{static}}}\times100\%
+$$<br />
+例如 π0.5：<br />
+$$
+\frac{57.8}{96.9}\times100\%\approx59.6\%
+$$<br />
+表示动态成功率约为静态成功率的 59.6%。<br />
+<strong>作用</strong>：衡量模型面对动态环境时，相对于自身静态基线保留了多少任务成功率。</p>
+
+<h3>10.4 Finding 1：速度越快，成功率越低</h3>
+
+<p>随着物体速度从 0.03 m/s 增加到 0.09 m/s，六个模型的成功率全部下降，但幅度不同。<br />
+例如：<br />
+- π0.5：64.8% → 51.2%，下降 13.6 个百分点。<br />
+- FastWAM：34.2% → 29.5%，下降 4.7 个百分点。<br />
+- OpenVLA-OFT：34.3% → 20.7%，下降 13.6 个百分点。<br />
+<strong>注意</strong>：下降幅度小不一定代表模型更强，还需要考虑模型原本的成功率。<br />
+六个模型的量化推理延迟 $D$ 均为 2 个控制步，但动态成功率差异仍然很大，说明推理延迟不是动态性能的唯一决定因素。<br />
+<strong>Finding 1</strong>：目标运动越快，每个模型成功率都越低，但不同模型的速度敏感性不同。静态成功率高，不代表动态响应能力一定强。</p>
+
+<h2>11. 执行策略与动态微调实验</h2>
+
+<p><img src="/images/obsidian/9db406b2de69.png" alt="LIBERO-Dynamic_图2_结果.png" width="560" /></p>
+
+<blockquote>
+  <p>论文图 2 右下（Benchmark Results）：左边雷达图比较四种执行协议；右边柱状图是动态微调前后 SR：π0.5 57.8→69.3（+11.5），Single Joint 40.4→49.4（+9.0），History Joint 43.8→66.8（+23.1）。</p>
+</blockquote>
+
+<h3>11.1 执行协议比较</h3>
+
+<p>论文在固定模型 Checkpoint 的情况下，比较不同的执行方式和动作视野。<br />
+<strong>Fixed Checkpoint（固定检查点）</strong>：保持模型权重不变，只改变动作执行协议或 K 等配置。<br />
+这样可以研究在不重新训练模型时，执行系统如何影响动态任务成功率。<br />
+但不同协议可能有不同输入和延迟，因此不能完全将性能差异归因于单一机制。</p>
+
+<p><img src="/images/obsidian/00c55df39ba3.png" alt="LIBERO-Dynamic_图4_执行协议K扫描.png" width="680" /></p>
+
+<blockquote>
+  <p>论文图 4：π0.5（PyTorch）在 (a) Sync、(b) Async、(c) RTC、(d) VLASH 下 SR 随动作视野 K 的变化。(a) 额外画了零延迟诊断线（τ=0）；(b) 右轴叠加了稳态下溢（UF/1k）——K≤4 时下溢很高、SR 低，K=6 时下溢降到 0、SR 最高。</p>
+</blockquote>
+
+<h3>11.2 Dynamic Fine-Tuning（动态数据微调）</h3>
+
+<p>论文使用动态示范和静态、动态混合数据，对不同模型架构进行微调。<br />
+主要研究：<br />
+- 动态数据是否提高动态任务成功率。<br />
+- 不同架构是否同样受益于动态数据。<br />
+- 历史状态、时间信息等时间条件化方式是否影响微调收益。<br />
+实验发现，动态数据能够提高部分模型的动态操作能力，但不同架构的收益不同。</p>
+
+<p><img src="/images/obsidian/d7ff0ae5e95c.png" alt="LIBERO-Dynamic_图5_动态微调.png" width="680" /></p>
+
+<blockquote>
+  <p>论文图 5：Async 执行下的动态数据微调。(a–c) 三个模型的 K 扫描及稳态下溢（右轴）；(d) 各模型在不同训练配方下的最佳 SR。</p>
+</blockquote>
+
+<p><strong>核心区别</strong>：执行策略优化不改变模型权重；动态微调通过更新模型参数改变动作策略。</p>
+
+<h2>12. 论文局限</h2>
+
+<h3>12.1 固定延迟</h3>
+
+<p>论文使用预先标定的模型延迟中位数，没有覆盖真实部署中的延迟波动。例如模型一次推理需要 60ms，下一次可能需要 150ms。<br />
+<strong>问题</strong>：实际部署时推理延迟不稳定，可能进一步影响动作队列和任务成功率。</p>
+
+<h3>12.2 运动模式有限</h3>
+
+<p>目标只沿预设轨迹、以固定速度运动，缺少复杂的随机加速、减速、碰撞后改变方向等不可预测行为。<br />
+<strong>问题</strong>：真实场景的运动复杂度可能更高。</p>
+
+<h3>12.3 泛化能力验证不足</h3>
+
+<p>训练和评测按照运动相位划分，但共享任务、路径和速度。<br />
+因此结果主要证明模型能够适应指定动态条件，尚不能充分说明其能够泛化到完全未见的任务、速度或运动模式。</p>
+
+<h3>12.4 K* 依赖实验条件</h3>
+
+<p>最佳动作视野来自有限扫描，并且在同一评测集上选择。<br />
+不同模型、执行协议和任务条件可能对应不同的最佳 K，不能认为某个 K 对所有情况都最优。</p>
+
+<h3>12.5 真机实验有限</h3>
+
+<p>论文主要依赖 MuJoCo 仿真，真实机器人实验仅覆盖部分任务和单一平台。<br />
+因此仿真结论在更多真实平台上的适用性还需要验证。</p>
+
+<p><img src="/images/obsidian/3f31057cec7d.png" alt="LIBERO-Dynamic_图7_真机结果.png" width="680" /></p>
+
+<blockquote>
+  <p>论文图 7：真机结果（K∈{4,8}）。传送带交接和两种小车追踪报告 50 次中的成功数；打地鼠报告 50×30 秒内的成功按压数。只有一个机器人平台、四个任务。</p>
+</blockquote>
+
+<p><strong>核心矛盾</strong>：固定延迟和受控运动提高了 Benchmark 的可复现性，但同时限制了它对真实世界随机性和复杂性的覆盖。</p>
+
+<h2>13. 总结</h2>
+
+<p><strong>LIBERO-Dynamic 的核心贡献</strong>是将 LIBERO 从静态操作扩展到考虑物体运动、推理延迟和动作执行时序的动态 Benchmark。<br />
+主要技术关系：<br />
+- <strong>Contact-Driven Motion</strong>：通过摩擦驱动物体，保留物理接触和抓取行为。<br />
+- <strong>Latency Calibration</strong>：将实际测得的推理延迟转换为仿真控制步。<br />
+- <strong>Sync / Async / RTC / VLASH</strong>：研究模型推理期间如何持续执行和衔接动作。<br />
+- <strong>Online Motion Compensation</strong>：把静态示范转换为动态示范。<br />
+- <strong>Dynamic Dataset</strong>：提供 9,000 条经过筛选的动态操作轨迹。<br />
+- <strong>SR / E<em>T / E</em>P / E_I</strong>：分别评价成功率、时间效率、路径效率和查询效率。<br />
+- <strong>Fixed Checkpoint Experiments</strong>：研究不修改模型权重时执行策略的影响。<br />
+- <strong>Dynamic Fine-Tuning</strong>：研究动态示范及时间条件化对动作策略的影响。<br />
+<strong>关键发现</strong>：现有预训练机器人策略在静态 LIBERO 上成功率普遍较高，但面对运动目标时性能明显下降；执行时序和动态训练数据均会影响动态操作能力。<br />
+<strong>一句话：LIBERO-Dynamic 通过可控的动态物理环境、模型特定推理延迟和统一评测协议，衡量机器人策略在时间压力下的操作能力，并进一步研究动作执行方式与动态数据训练如何改善表现。</strong></p>
