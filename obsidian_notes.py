@@ -5,7 +5,7 @@ from ai_categories import destination,format_date
 ROOT=Path(__file__).parent
 ARTICLES=json.loads((ROOT/'content/obsidian-articles.json').read_text())
 def rows():
- return ''.join(f'<article class="row"><time datetime="{a["date"]}">2026 年 11 月 1 日</time><h3><a href="/posts/{a["slug"]}/">{a["title"]}</a></h3></article>' for a in ARTICLES)
+ return ''.join(f'<article class="row"><time datetime="{a["date"]}">{format_date(a["date"])}</time><h3><a href="/posts/{a["slug"]}/">{a["title"]}</a></h3></article>' for a in ARTICLES)
 def build(page):
  for a in ARTICLES:
   slug,title=a['slug'],a['title'];entries=[]
